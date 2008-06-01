@@ -109,6 +109,7 @@ const FB_HOST_PATHDIV       = "/"
 enum FB_COMPOPT
 	FB_COMPOPT_DEBUG
 	FB_COMPOPT_CPUTYPE
+	FB_COMPOPT_FPUTYPE
 	FB_COMPOPT_NOSTDCALL
 	FB_COMPOPT_NOUNDERPREFIX
 	FB_COMPOPT_ERRORCHECK
@@ -142,6 +143,7 @@ enum FB_PDCHECK
 	FB_PDCHECK_PARAMMODE    = &h00000002
 	FB_PDCHECK_PARAMSIZE    = &h00000004
 	FB_PDCHECK_NEXTVAR      = &h00000008
+	FB_PDCHECK_CASTTONONPTR = &h00000010
 
 	FB_PDCHECK_ALL          = &hffffffff
 
@@ -157,6 +159,14 @@ enum FB_CPUTYPE
 end enum
 
 const FB_DEFAULT_CPUTYPE    = FB_CPUTYPE_486
+
+'' fpu types
+enum FB_FPUTYPE
+	FB_FPUTYPE_FPU
+	FB_FPUTYPE_SSE
+end enum
+
+const FB_DEFAULT_FPUTYPE    = FB_FPUTYPE_FPU
 
 '' output file type
 enum FB_OUTTYPE
@@ -248,6 +258,7 @@ end enum
 type FBCMMLINEOPT
 	debug			as integer					'' true=add debug info (def= false)
 	cputype			as FB_CPUTYPE
+	fputype			as FB_FPUTYPE
 	errorcheck		as integer					'' runtime error check (def= false)
 	nostdcall		as integer
 	nounderprefix	as integer					'' don't add underscore's the function names

@@ -1030,6 +1030,12 @@ private function hNewVR _
 	v->vaux	= NULL
 	v->ofs = 0
 
+	if( env.clopt.fputype = FB_FPUTYPE_FPU ) then
+		v->regFamily = IR_REG_FPU_STACK
+	else
+		v->regFamily = IR_REG_SSE
+	end if
+
 	v->tacvhead = NULL
 	v->tacvtail = NULL
 	v->taclast = NULL
@@ -1431,6 +1437,13 @@ private sub _flush static
 
 		end select
 
+		if( env.clopt.fputype >= FB_FPUTYPE_SSE ) then
+			'' after vr has been used for the first time, force reg family to be SSE
+			if( astGetOpClass( op ) <> AST_NODECLASS_CALL ) then
+				if( vr ) then vr->regFamily = IR_REG_SSE
+			end if
+		end if
+
 		t = flistGetNext( t )
 	loop while( t <> NULL )
 
@@ -1671,6 +1684,7 @@ private sub hFlushCALL _
 
 		vr->reg = regTB(vr_dclass)->allocateReg( regTB(vr_dclass), vr_reg, vr )
 		vr->typ = IR_VREGTYPE_REG
+
 
     	'' fb allows function calls w/o saving the result
 		hFreeREG( vr )
@@ -2269,6 +2283,11 @@ private sub hFlushLOAD _
 			vr->reg = regTB(v1_dclass)->allocateReg( regTB(v1_dclass), vr_reg, vr )
 			vr->typ = IR_VREGTYPE_REG
 
+			'' decide where to put the float (st(0) or xmm0) at the end of the function
+			if( ast.proc.curr->sym->proc.returnMethod = FB_RETURN_FPU ) then
+				vr->regFamily = IR_REG_FPU_STACK
+			end if
+
 			''
 			emitLOAD( vr, v1 )
 
@@ -2309,11 +2328,18 @@ private sub hFlushCONVERT _
 
 		'' fp to fp conversion with source already on stack? do nothing..
 		if( v2_dclass = FB_DATACLASS_FPOINT ) then
-			v1->reg = v2->reg
-			v2->reg = INVALID
-			v1->typ = IR_VREGTYPE_REG
-			regTB(v1_dclass)->setOwner( regTB(v1_dclass), v1->reg, v1 )
-			exit sub
+			if( irGetOption( IR_OPT_FPU_CONVERTOPER ) ) then
+
+				v1->regFamily = v2->regFamily
+				if( v2->regFamily = IR_REG_FPU_STACK ) then exit sub
+			else
+				v1->reg = v2->reg
+				v2->reg = INVALID
+				v1->typ = IR_VREGTYPE_REG
+				regTB(v1_dclass)->setOwner( regTB(v1_dclass), v1->reg, v1 )
+				exit sub
+			endif
+
 		end if
 
 		'' it's an integer, check if used again
@@ -2639,6 +2665,8 @@ private sub _loadVR _
 			rvreg.reg	= reg
 			rvreg.vaux	= vreg->vaux
 
+			rvreg.regFamily = vreg->regFamily
+
 			emitLOAD( @rvreg, vreg )
 		end if
 
@@ -2649,6 +2677,11 @@ private sub _loadVR _
     end if
 
 	vreg->reg = reg
+
+	if( env.clopt.fputype >= FB_FPUTYPE_SSE ) and ( doLoad = FALSE ) then
+		vreg->regFamily = IR_REG_SSE
+	end if
+
 
 end sub
 
@@ -2686,6 +2719,8 @@ private sub _storeVR _
 	rvreg.reg		= reg
 	rvreg.vaux		= vreg->vaux
 
+	rvreg.regFamily	= vreg->regFamily
+
 	hCreateTMPVAR( vreg )
 
 	emitSTORE( vreg, @rvreg )
@@ -2699,6 +2734,10 @@ private sub _storeVR _
 			vareg->typ = IR_VREGTYPE_VAR
 			vareg->ofs = vreg->ofs + FB_INTEGERSIZE
 		end if
+	end if
+
+	if( env.clopt.fputype >= FB_FPUTYPE_SSE ) then
+		vreg->regFamily = IR_REG_SSE
 	end if
 
 end sub
