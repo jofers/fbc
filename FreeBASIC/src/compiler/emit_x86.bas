@@ -3721,8 +3721,7 @@ private sub _emitADDF_SSE _
 			endif
 		end if
 	else
-		'' XXX TODO: add int to float
-		'' will this ever happen?
+		'' This should never happen due to IR_OPT_FPU_CONVERTOPER
 		outp " implement 'add integer to float'"
 	end if
 	exit sub
@@ -3878,7 +3877,7 @@ private sub _emitSUBF_SSE _
 			endif
 		end if
 	else
-		'' TODO: subtract int from float
+		'' This should never happen due to IR_OPT_FPU_CONVERTOPER
 		outp " implement 'subtract integer from float'"
 	end if
 end sub
@@ -4219,7 +4218,7 @@ private sub _emitMULF_SSE _
 			endif
 		end if
 	else
-		'' TODO: multiply by int
+		'' This should never happen due to IR_OPT_FPU_CONVERTOPER
 		outp " implement 'multiply float by integer'"
 	end if
 
@@ -4319,7 +4318,7 @@ private sub _emitDIVF_SSE _
 			endif
 		end if
 	else
-		'' TODO: divide by int
+		'' This should never happen due to IR_OPT_FPU_CONVERTOPER
 		outp " implement 'divide float by integer'"
 	end if
 
