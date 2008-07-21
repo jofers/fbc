@@ -403,17 +403,6 @@ function DoCompile _
 
 			args = sourcedir & source
 
-			if instr( lcase(body), "-lang deprecated" ) > 0 then
-				args += " -lang deprecated"
-
-			elseif instr( lcase(body), "-lang fblite" ) > 0 then
-				args += " -lang fblite"
-
-			elseif instr( lcase(body), "-lang qb" ) > 0 then
-				args += " -lang qb"
-
-			end if
-
 			args += " -x " & sourcedir & target
 
 			print fbc & " " & args
@@ -699,11 +688,11 @@ case else
 	print
 	print "   Options:"
 	print "      -fbc path" & psc & "fbc" & exe_ext
-	print "         Sets path and name of the fbc compiler to use when
+	print "         Sets path and name of the fbc compiler to use when"
 	print "         building the samples.  Default is .." & psc & ".." & psc & "fbc" & exe_ext
 	print
 	print "      -srcdir path"
-	print "         Set the base directory of the samples to build.
+	print "         Set the base directory of the samples to build."
 	print "         Default is " & exepath & psc
 	print
 	print "      dirs..."
@@ -711,7 +700,7 @@ case else
 	print "         Default is to build all. e.g. proguide/arrays"
 	print
 	print "      -special"
-	print "         Only process the special builds.  (Files listed in samples.ini)
+	print "         Only process the special builds.  (Files listed in samples.ini)"
 	print
 	print "      -error"
 	print "         Abort on first error detected"

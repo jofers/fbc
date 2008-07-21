@@ -624,7 +624,12 @@ private function hFilePut _
 
     				lexSkipToken( )
     				lexSkipToken( )
-    			end if
+
+				'' warn if data is pointer
+    			elseif( typeIsPtr( symbGetType( s ) ) ) then
+					errReportWarn( FB_WARNINGMSG_PASSINGPTR )
+
+				end if
     		end if
     	end if
 	end if
@@ -632,24 +637,38 @@ private function hFilePut _
 	'' (',' elements)?
 	if( hMatch( CHAR_COMMA ) ) then
 		if( isarray ) then
-			if( errReport( FB_ERRMSG_SYNTAXERROR ) = FALSE ) then
+			if( errReport( FB_ERRMSG_ELEMENTSMUSTBEEMPTY ) = FALSE ) then
 				exit function
-			end if
-
-			elmexpr = cExpression( )
-			if( elmexpr <> NULL ) then
-				astDelTree( elmexpr )
-			end if
-
-		else
-			elmexpr = cExpression( )
-			if( elmexpr = NULL ) then
-				if( errReport( FB_ERRMSG_EXPECTEDEXPRESSION ) = FALSE ) then
-					exit function
-				else
-					elmexpr = NULL
+			else
+				'' error recovery: skip elements
+				elmexpr = cExpression( )
+				if( elmexpr <> NULL ) then
+					astDelTree( elmexpr )
 				end if
 			end if
+		else
+			'' don't allow elements if source is string type
+			select case astGetDataType( srcexpr )
+			case FB_DATATYPE_STRING, FB_DATATYPE_FIXSTR
+				if( errReport( FB_ERRMSG_ELEMENTSMUSTBEEMPTY ) = FALSE ) then
+					exit function
+				else
+					'' error recovery: skip elements
+					elmexpr = cExpression( )
+					if( elmexpr <> NULL ) then
+						astDelTree( elmexpr )
+					end if
+				end if
+			case else
+				elmexpr = cExpression( )
+				if( elmexpr = NULL ) then
+					if( errReport( FB_ERRMSG_EXPECTEDEXPRESSION ) = FALSE ) then
+						exit function
+					else
+						elmexpr = NULL
+					end if
+				end if
+			end select
 		end if
 
 		'' elems has to be an integer or able to be converted
@@ -681,14 +700,15 @@ private function hFilePut _
 end function
 
 '':::::
-'' Get			= GET '#' Expression ',' Expression? ',' Variable{str|int|float|array} (',' Expression)?
+'' Get			= GET '#' Expression ',' Expression? ',' Variable{str|int|float|array} 
+''                (',' Expression)? (',' variable)?
 ''
 private function hFileGet _
 	( _
 		byval isfunc as integer _
 	) as ASTNODE ptr
 
-	dim as ASTNODE ptr fileexpr, posexpr, dstexpr, elmexpr
+	dim as ASTNODE ptr fileexpr, posexpr, dstexpr, elmexpr, iobexpr
 	dim as integer isarray
 	dim as FBSYMBOL ptr s
 
@@ -724,6 +744,11 @@ private function hFileGet _
 			end if
 			return astNewCONSTi( 0, FB_DATATYPE_INTEGER )
 		end if
+	else
+		'' warn if passing a pointer
+		if( typeIsPtr( astGetDataType( dstexpr ) ) ) then
+			errReportWarn( FB_WARNINGMSG_PASSINGPTR )
+		end if
 	end if
 
 	isarray = FALSE
@@ -755,45 +780,85 @@ private function hFileGet _
 
 	'' (',' elements)?
 	if( hMatch( CHAR_COMMA ) ) then
-		if( isarray ) then
-			if( errReport( FB_ERRMSG_SYNTAXERROR ) = FALSE ) then
-				exit function
-			end if
+		elmexpr = cExpression( )
 
-			elmexpr = cExpression( )
+		if( isarray ) then
+			'' elems must be NULL
 			if( elmexpr <> NULL ) then
+				if( errReport( FB_ERRMSG_ELEMENTSMUSTBEEMPTY ) = FALSE ) then
+					exit function
+				end if
 				astDelTree( elmexpr )
+				elmexpr = NULL
 			end if
 
 		else
-			elmexpr = cExpression( )
-			if( elmexpr = NULL ) then
-				if( errReport( FB_ERRMSG_EXPECTEDEXPRESSION ) = FALSE ) then
-					exit function
-				else
-					elmexpr = NULL
-				end if
-			end if
-			'' elems has to be an integer or able to be converted
 			if( elmexpr ) then
-				if( typeIsPtr( astGetDatatype( elmexpr ) ) ) then
-					errReportWarn( FB_WARNINGMSG_PASSINGPTRTOSCALAR )
-				end if
 
-				if( astGetDatatype( elmexpr ) <> FB_DATATYPE_INTEGER ) then
-					elmexpr = astNewCONV( FB_DATATYPE_INTEGER, NULL, elmexpr )
-					if( elmexpr = NULL ) then
-						if( errReport( FB_ERRMSG_SYNTAXERROR, TRUE ) = FALSE ) then
-							exit function
-						else
-							elmexpr = NULL
+				'' don't allow elements if destine is string type
+				select case astGetDataType( dstexpr )
+				case FB_DATATYPE_STRING, FB_DATATYPE_FIXSTR
+					if( errReport( FB_ERRMSG_ELEMENTSMUSTBEEMPTY ) = FALSE ) then
+						exit function
+					else
+						'' error recovery: skip elements
+						astDelTree( elmexpr )
+						elmexpr = NULL
+					end if
+			
+				case else
+
+					'' elems has to be an integer or able to be converted
+					if( typeIsPtr( astGetDatatype( elmexpr ) ) ) then
+						errReportWarn( FB_WARNINGMSG_PASSINGPTRTOSCALAR )
+					end if
+					if( astGetDatatype( elmexpr ) <> FB_DATATYPE_INTEGER ) then
+						elmexpr = astNewCONV( FB_DATATYPE_INTEGER, NULL, elmexpr )
+						if( elmexpr = NULL ) then
+							if( errReport( FB_ERRMSG_SYNTAXERROR, TRUE ) = FALSE ) then
+								exit function
+							else
+								elmexpr = NULL
+							end if
 						end if
 					end if
-				end if
+				end select
+
 			end if
 		end if
 	else
 		elmexpr = NULL
+	end if
+
+	'' (',' iobytes)?
+	if( hMatch( CHAR_COMMA ) ) then
+		iobexpr = cVarOrDeref( )
+		if( iobexpr <> NULL ) then
+			s = astGetSymbol( iobexpr )
+			if( s <> NULL ) then
+				dim isint as integer = FALSE
+
+				'' must be integer
+				select case symbGetType( s )
+				case FB_DATATYPE_INTEGER, FB_DATATYPE_UINT
+					isint = TRUE
+				case FB_DATATYPE_LONG, FB_DATATYPE_ULONG
+					isint = ( FB_LONGSIZE = FB_INTEGERSIZE )
+				end select
+
+				if( isint = FALSE ) then
+					if( errReport( FB_ERRMSG_INVALIDDATATYPES ) = FALSE ) then
+						exit function
+					end if
+				end if
+			end if			
+		else
+			if( errReport( FB_ERRMSG_EXPECTEDIDENTIFIER ) = FALSE ) then
+				exit function
+			end if			
+		end if
+	else
+		iobexpr = NULL
 	end if
 
 	'' dest can't be a top-level const
@@ -802,11 +867,20 @@ private function hFileGet _
 			exit function
 		end if
 	end if
-	
+
+	'' iobytes can't be a top-level const
+	if( iobexpr ) then
+		if( typeIsConst( astGetFullType( iobexpr ) ) ) then
+			if( errReport( FB_ERRMSG_CONSTANTCANTBECHANGED ) = FALSE ) then
+				exit function
+			end if
+		end if
+	end if
+		
 	if( isarray = FALSE ) then
-		function = rtlFileGet( fileexpr, posexpr, dstexpr, elmexpr, isfunc )
+		function = rtlFileGet( fileexpr, posexpr, dstexpr, elmexpr, iobexpr, isfunc )
 	else
-		function = rtlFileGetArray( fileexpr, posexpr, dstexpr, isfunc )
+		function = rtlFileGetArray( fileexpr, posexpr, dstexpr, iobexpr, isfunc )
 	end if
 
 end function

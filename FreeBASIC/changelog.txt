@@ -11,8 +11,12 @@ Version 0.20.0 Beta:
 - binary operator overload resolution logic: Now an operator is only eligible if at least one side of the expression matches the candidate's parameter list exactly, without implicit coercion/casting. (cha0s)
 - the default aspect ratio for CIRCLE is now 1.0 in SCREENRES modes (counting_pine)
 - CIRCLE should get its size from just the horizontal scale of the WINDOW/VIEW viewport - its ratio should be unaffected (counting_pine)
+- DIR may now except a byref [u]integer for out_attrib (byval integer ptrs are still allowed) (counting_pine)
+- SCREENLOCK/SCREENUNLOCK now keep a reference count internally to allow them to be used inside functions without unlocking a global lock (DrV)
+- linux: only specify linker script path for standalone builds (fixes lib path problems on x86-64) (DrV)
 
 [added]
+- #lang directive and $lang metacommand to set compiler dialect from source code (jeffm)
 - IMAGEINFO function, for retrieving useful information about FB gfx buffers (counting_pine)
 - warning message when string literals aren't closed with a quote (counting_pine)
 - C emitter: GOSUB and ON GOSUB using setjmp/longjmp (jeffm)
@@ -25,6 +29,8 @@ Version 0.20.0 Beta:
 - "-fpu FPU|SSE" command line switch (Bryan Stoeberl)
 - OPTION("FPU|SSE") to specify proc return method (Bryan Stoeberl)
 - CPU check for SSE applications (Bryan Stoeberl)
+- #1515157 (feature request) - GET# returns number of bytes read in 5th byref parameter (jeffm)
+- improved error messages for GET#/PUT# - warn if passing a pointer as source/destination, error if elements is given on string or array (jeffm)
 
 [fixed]
 - wstring VAL*s were accepting invalid characters in hex/oct/bin numbers (counting_pine)
@@ -51,6 +57,10 @@ Version 0.20.0 Beta:
 - #1961732 - LSET wasn't accepting dereferenced vars for the destination (counting_pine)
 - RSET was allowing constants to be modified (counting_pine)
 - CPTR() will generate a warning if casting to anything but pointer, integer, or enum and will generate a pedantic warning when casting to anything but pointer (jeffm)
+- #2004439 - LSET/RSET was not deleting temporary string descriptors for the destination (jeffm)
+- #1914763 - LINE INPUT to a WSTRING variable on an ascii text file was failing if last line of file had no end of line character (jeffm)
+- #1979795 - GETMOUSE in Win32 GFX driver was not clearing the status of the XBUTTON's correctly (jeffm)
+- #2016487 - inc/win/vfw.bi - Changed "Delete" to "Delete__" and ported the remaining IC* AVI* and MCI* defines (jeffm)
 
 
 Version 0.18.5 Beta:
