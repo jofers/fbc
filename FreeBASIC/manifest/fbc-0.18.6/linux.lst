@@ -1,8 +1,8 @@
 changelog.txt
 fbc
 fblogo.xpm
-install-standalone.sh
 install.sh
+install-standalone.sh
 migrating.txt
 readme.txt
 docs/fbc.1
@@ -31,7 +31,6 @@ examples/gfx/fbgfx_depth.bas
 examples/gfx/fbgfx_events.bas
 examples/gfx/fbgfx_flame.bas
 examples/gfx/fbgfx_getput.bas
-examples/gfx/fbgfx_imageinfo.bas
 examples/gfx/fbgfx_input.bas
 examples/gfx/fbgfx_test.bas
 examples/gfx/fblogo.bmp
@@ -250,6 +249,7 @@ examples/libraries/freetype/ft2_print.bas
 examples/libraries/freetype/ft2_test.bas
 examples/libraries/libxml/read1.bas
 examples/libraries/libxml/test.xml
+examples/libraries/mini/example.bas
 examples/libraries/networking/http-get.bas
 examples/libraries/pdflib/logo.gif
 examples/libraries/pdflib/pdflib_test.bas
@@ -444,14 +444,12 @@ examples/manual/defines/fboptionbyval.bas
 examples/manual/defines/fboptiondynamic.bas
 examples/manual/defines/fboptionescape.bas
 examples/manual/defines/fboptionexplicit.bas
-examples/manual/defines/fboptiongosub.bas
 examples/manual/defines/fboptionprivate.bas
 examples/manual/defines/fboutdll.bas
 examples/manual/defines/fboutexe.bas
 examples/manual/defines/fboutlib.bas
 examples/manual/defines/fboutobj.bas
 examples/manual/defines/fbsignature.bas
-examples/manual/defines/fbsse.bas
 examples/manual/defines/fbvermajor.bas
 examples/manual/defines/fbverminor.bas
 examples/manual/defines/fbverpatch.bas
@@ -484,7 +482,6 @@ examples/manual/faq/gfxlib2/bload-workaround.bas
 examples/manual/faq/gfxlib2/check-for-close.bas
 examples/manual/faq/gfxlib2/image-header.bas
 examples/manual/fileio/access.bas
-examples/manual/fileio/basicvsc.bas
 examples/manual/fileio/binary-read.bas
 examples/manual/fileio/binary-text.bas
 examples/manual/fileio/binary-write.bas
@@ -540,9 +537,7 @@ examples/manual/gfx/drawstring.bas
 examples/manual/gfx/flip.bas
 examples/manual/gfx/imageconvertrow.bas
 examples/manual/gfx/imagecreate.bas
-examples/manual/gfx/imageinfo.bas
 examples/manual/gfx/line.bas
-examples/manual/gfx/line_style.bas
 examples/manual/gfx/paint.bas
 examples/manual/gfx/paint2.bas
 examples/manual/gfx/palette.bas
@@ -629,7 +624,6 @@ examples/manual/memory/swap.bas
 examples/manual/meta/dynamic.bas
 examples/manual/meta/header.bi
 examples/manual/meta/include.bas
-examples/manual/meta/lang.bas
 examples/manual/meta/static.bas
 examples/manual/misc/any-param.bas
 examples/manual/misc/any.bas
@@ -667,7 +661,6 @@ examples/manual/operator/address-var.bas
 examples/manual/operator/and-assign.bas
 examples/manual/operator/and-bitwise.bas
 examples/manual/operator/and-logical.bas
-examples/manual/operator/andalso.bas
 examples/manual/operator/arrayindex.bas
 examples/manual/operator/assign-let.bas
 examples/manual/operator/assign.bas
@@ -707,7 +700,6 @@ examples/manual/operator/not-logical.bas
 examples/manual/operator/or-assign.bas
 examples/manual/operator/or-bitwise.bas
 examples/manual/operator/or-logical.bas
-examples/manual/operator/orelse.bas
 examples/manual/operator/placement_new.bas
 examples/manual/operator/pointer-index.bas
 examples/manual/operator/procptr.bas
@@ -731,19 +723,16 @@ examples/manual/prepro/else.bas
 examples/manual/prepro/elseif.bas
 examples/manual/prepro/endif.bas
 examples/manual/prepro/error.bas
-examples/manual/prepro/escape.bas
 examples/manual/prepro/header.bi
 examples/manual/prepro/if.bas
 examples/manual/prepro/ifdef.bas
 examples/manual/prepro/ifndef.bas
 examples/manual/prepro/inclib.bas
 examples/manual/prepro/include.bas
-examples/manual/prepro/lang.bas
 examples/manual/prepro/libpath.bas
 examples/manual/prepro/line.bas
 examples/manual/prepro/macro.bas
 examples/manual/prepro/macro2.bas
-examples/manual/prepro/noescape.bas
 examples/manual/prepro/pragma.bas
 examples/manual/prepro/print.bas
 examples/manual/prepro/stringize.bas
@@ -779,7 +768,6 @@ examples/manual/procs/va_next.bas
 examples/manual/proguide/arrays/array1.bas
 examples/manual/proguide/arrays/array2.bas
 examples/manual/proguide/arrays/array3.bas
-examples/manual/proguide/arrays/array4.bas
 examples/manual/proguide/arrays/fixedlen_1.bas
 examples/manual/proguide/arrays/fixedlen_2.bas
 examples/manual/proguide/arrays/indexing.bas
@@ -953,8 +941,6 @@ examples/manual/switches/option-byval.bas
 examples/manual/switches/option-dynamic.bas
 examples/manual/switches/option-escape.bas
 examples/manual/switches/option-explicit.bas
-examples/manual/switches/option-gosub.bas
-examples/manual/switches/option-nogosub.bas
 examples/manual/switches/option-nokeyword.bas
 examples/manual/switches/option-private.bas
 examples/manual/switches/option-static.bas
@@ -964,7 +950,6 @@ examples/manual/system/chdir.bas
 examples/manual/system/command.bas
 examples/manual/system/curdir.bas
 examples/manual/system/dir.bas
-examples/manual/system/dirretat.bas
 examples/manual/system/environ.bas
 examples/manual/system/exec.bas
 examples/manual/system/exepath.bas
@@ -1973,6 +1958,7 @@ inc/gtk/pango/pango-renderer.bi
 inc/gtk/pango/pango-script.bi
 inc/gtk/pango/pango-tabs.bi
 inc/gtk/pango/pango-types.bi
+inc/image_compat.bi
 inc/japi.bi
 inc/jni.bi
 inc/jpeglib.bi
@@ -2051,6 +2037,7 @@ inc/lzo/lzo1y.bi
 inc/lzo/lzo1z.bi
 inc/lzo/lzoconf.bi
 inc/lzo/lzodefs.bi
+inc/mini.bi
 inc/mxml.bi
 inc/mysql/my_alloc.bi
 inc/mysql/mysql.bi
