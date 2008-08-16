@@ -39,50 +39,54 @@ int fb_GfxWidth(int w, int h)
 	
 	if (w > 0)
 		font_w = __fb_gfx->w / w;
-	else
+	else {
 		font_w = __fb_gfx->font->w;
+		w = __fb_gfx->text_w;
+	}
 	
 	if (h > 0)
 		font_h = __fb_gfx->h / h;
-	else
+	else {
 		font_h = __fb_gfx->font->h;
+		h = __fb_gfx->text_h;
+	}
 	
-    switch( font_w ) {
-    case 8:
-        switch (font_h) {
-        case 8:
-            font = &fb_font_8x8;
-            break;
-        case 14:
-            font = &fb_font_8x14;
-            break;
-        case 16:
-            font = &fb_font_8x16;
-            break;
-        }
-        break;
-    }
+	switch( font_w ) {
+	case 8:
+		switch (font_h) {
+		case 8:
+			font = &fb_font_8x8;
+			break;
+		case 14:
+			font = &fb_font_8x14;
+			break;
+		case 16:
+			font = &fb_font_8x16;
+			break;
+		}
+		break;
+	}
 	
-    if (font) {
-        /* Update font data */
+	if (font) {
+		/* Update font data */
 		__fb_gfx->text_w = w;
 		__fb_gfx->text_h = h;
-        __fb_gfx->font = font;
-
-        fb_hResetCharCells(fb_hGetContext(), TRUE);
-
-        /* Reset graphics VIEW */
-        fb_GfxView( -32768, -32768,
-                    -32768, -32768,
-                    0, 0,
-                    DEFAULT_COLOR_1 | DEFAULT_COLOR_2 );
-
-        /* Reset VIEW PRINT */
-        fb_ConsoleView( 0, 0 );
-
-        /* Clear the whole screen */
+		__fb_gfx->font = font;
+		
+		fb_hResetCharCells(fb_hGetContext(), TRUE);
+		
+		/* Reset graphics VIEW */
+		fb_GfxView( -32768, -32768,
+		            -32768, -32768,
+		            0, 0,
+		            DEFAULT_COLOR_1 | DEFAULT_COLOR_2 );
+		
+		/* Reset VIEW PRINT */
+		fb_ConsoleView( 0, 0 );
+		
+		/* Clear the whole screen */
 		fb_GfxClear(0);
 	}
-
+	
 	return cur;
 }
