@@ -22,9 +22,21 @@
 
 
 #include once "inc/fb.bi"
+#include once "inc/fbint.bi"
 #include once "inc/fbc.bi"
 #include once "inc/hlp.bi"
 
+enum GCC_LIB
+	CRT1_O
+	CRTBEGIN_O
+	CRTEND_O
+	CRTI_O
+	CRTN_O
+	GCRT1_O
+	LIBGCC_A
+	LIBSUPC_A
+	GCC_LIBS
+end enum
 
 ''
 '' globals
@@ -65,6 +77,7 @@ private function _linkFiles _
 	) as integer
 
 	dim as string ldpath, ldcline, dllname
+	dim as integer res = any
 
 	function = FALSE
 
@@ -100,9 +113,6 @@ private function _linkFiles _
 			ldcline += " --export-dynamic"
 		end if
 	end if
-
-	'' set script file
-	ldcline += (" -T " + QUOTE) + fbGetPath( FB_PATH_SCRIPT ) + ("elf_i386.x" + QUOTE)
 
 	if( len( fbc.mapfile ) > 0 ) then
 		ldcline += " -Map " + fbc.mapfile
@@ -174,7 +184,11 @@ private function _linkFiles _
 		print "linking: ", ldcline
 	end if
 
-	if( exec( ldpath, ldcline ) <> 0 ) then
+	res = exec( ldpath, ldcline )
+	if( res <> 0 ) then
+		if( fbc.verbose ) then
+			print "linking failed: error code " & res
+		end if
 		exit function
 	end if
 
@@ -201,8 +215,6 @@ end function
 
 #define STATE_OUT_STRING	0
 #define STATE_IN_STRING		1
-#define CHAR_TAB			9
-#define CHAR_QUOTE			34
 
 '':::::
 private function _compileResFiles _
@@ -378,6 +390,58 @@ private function _processOptions _
 
 end function
 
+
+'':::::
+private sub _getDefaultLibs _
+	( _
+		byval dstlist as TLIST ptr, _
+		byval dsthash as THASH ptr _
+	)
+
+#macro hAddLib( libname )
+	symbAddLibEx( dstlist, dsthash, libname, TRUE )
+#endmacro
+
+	hAddLib( "c" )
+	hAddLib( "m" )
+	hAddLib( "pthread" )
+	hAddLib( "ncurses" )
+	hAddLib( "supc++" )
+
+end sub
+
+
+'':::::
+private sub _addGfxLibs _
+	( _
+	)
+
+#ifdef __FB_FREEBSD__
+	symbAddLibPath( "/usr/X11R6/lib" )
+#endif
+
+	symbAddLib( "X11" )
+	symbAddLib( "Xext" )
+	symbAddLib( "Xpm" )
+	symbAddLib( "Xrandr" )
+	symbAddLib( "Xrender" )
+
+end sub
+
+
+'':::::
+private function _getCStdType _
+	( _
+		byval ctype as FB_CSTDTYPE _
+	) as integer
+
+	if( ctype = FB_CSTDTYPE_SIZET ) then
+		function = FB_DATATYPE_UINT
+	end if
+
+end function
+
+
 '':::::
 function fbcInit_freebsd( ) as integer
 
@@ -389,13 +453,35 @@ function fbcInit_freebsd( ) as integer
 		@_linkFiles, _
 		@_archiveFiles, _
 		@_delFiles, _
-		@_setDefaultLibPaths _
+		@_setDefaultLibPaths, _
+		@_getDefaultLibs, _
+		@_addGfxLibs, _
+		@_getCStdType _
 	)
 
 	fbc.vtbl = vtbl
 
 	''
 	xpmfile = ""
+
+	fbAddGccLib( @"crt1.o", CRT1_O )
+	fbAddGccLib( @"crtbegin.o", CRTBEGIN_O )
+	fbAddGccLib( @"crtend.o", CRTEND_O )
+	fbAddGccLib( @"crti.o", CRTI_O )
+	fbAddGccLib( @"crtn.o", CRTN_O )
+	fbAddGccLib( @"gcrt1.o", GCRT1_O )
+	fbAddGccLib( @"libgcc.a", LIBGCC_A )
+	fbAddGccLib( @"libsupc++.a", LIBSUPC_A )
+
+	env.target.wchar.type = FB_DATATYPE_UINT
+	env.target.wchar.size = FB_INTEGERSIZE
+
+	env.target.targetdir = @"freebsd"
+	env.target.define = @"__FB_FREEBSD__"
+	env.target.entrypoint = @"main"
+	env.target.underprefix = FALSE
+	env.target.constsection = @"rodata"
+	env.target.allowstdcall = FALSE
 
 	return TRUE
 

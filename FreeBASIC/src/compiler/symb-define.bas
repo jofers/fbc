@@ -266,43 +266,30 @@ sub symbDefineInit _
 	static as string value
 	dim as zstring ptr def = any
 
-    '' lists
-    listNew( @symb.def.paramlist, FB_INITDEFARGNODES, len( FB_DEFPARAM ), LIST_FLAGS_NOCLEAR )
+	'' lists
+	listNew( @symb.def.paramlist, FB_INITDEFARGNODES, len( FB_DEFPARAM ), LIST_FLAGS_NOCLEAR )
 
-    listNew( @symb.def.toklist, FB_INITDEFTOKNODES, len( FB_DEFTOK ), LIST_FLAGS_NOCLEAR )
+	listNew( @symb.def.toklist, FB_INITDEFTOKNODES, len( FB_DEFTOK ), LIST_FLAGS_NOCLEAR )
 
-    '' add the pre-defines
-    for i as integer = 0 to SYMB_MAXDEFINES-1
-    	if( defTb(i).name = NULL ) then
-    		exit for
-    	end if
+	'' add the pre-defines
+	for i as integer = 0 to SYMB_MAXDEFINES-1
+		if( defTb(i).name = NULL ) then
+			exit for
+		end if
 
-    	value = *defTb(i).value
-    	if( defTb(i).value <> NULL ) then
-            if( bit( defTb(i).flags, 0 ) = 0 ) then
-    			value = QUOTE + value + QUOTE
-            end if
-    	end if
+		value = *defTb(i).value
+		if( defTb(i).value <> NULL ) then
+			if( bit( defTb(i).flags, 0 ) = 0 ) then
+				value = QUOTE + value + QUOTE
+			end if
+		end if
 
-    	symbAddDefine( defTb(i).name, value, len( value ), _
-    				   FALSE, defTb(i).proc, defTb(i).flags )
-    next
+		symbAddDefine( defTb(i).name, value, len( value ), _
+		               FALSE, defTb(i).proc, defTb(i).flags )
+	next
 
 	'' add "target" define
-	select case as const env.clopt.target
-	case FB_COMPTARGET_WIN32
-		def = @"__FB_WIN32__"
-	case FB_COMPTARGET_CYGWIN
-		def = @"__FB_CYGWIN__"
-	case FB_COMPTARGET_LINUX
-		def = @"__FB_LINUX__"
-	case FB_COMPTARGET_DOS
-		def = @"__FB_DOS__"
-	case FB_COMPTARGET_XBOX
-		def = @"__FB_XBOX__"
-	case FB_COMPTARGET_FREEBSD
-		def = @"__FB_FREEBSD__"
-	end select
+	def = env.target.define
 
 	symbAddDefine( def, NULL, 0 )
 
@@ -310,7 +297,6 @@ sub symbDefineInit _
 	if( ismain ) then
 		symbAddDefine( "__FB_MAIN__", NULL, 0 )
 	end if
-
 
 	'' add SSE define
 	if( env.clopt.fputype >= FB_FPUTYPE_SSE ) then
@@ -332,7 +318,7 @@ sub symbDefineEnd( )
 
 	symb.def.param = 0
 
-    '' lists
+	'' lists
 	listFree( @symb.def.paramlist )
 
 	listFree( @symb.def.toklist )

@@ -26,6 +26,10 @@
 #include once "inc\fbc.bi"
 #include once "inc\hlp.bi"
 
+#ifdef USE_FB_BFD_HEADER
+#include "bfd.bi"
+#endif
+
 declare sub fbcInit _
 	( _
 	)
@@ -134,8 +138,6 @@ declare sub getDefaultLibs _
 		( FBC_OPT_NOERRLINE		, @"noerrline"   ), _
 		( FBC_OPT_NODEFLIBS		, @"nodeflibs"   ), _
 		( FBC_OPT_EXPORT		, @"export"      ), _
-		( FBC_OPT_NOSTDCALL		, @"nostdcall"   ), _
-		( FBC_OPT_STDCALL		, @"stdcall"     ), _
 		( FBC_OPT_NOUNDERSCORE	, @"nounderscore"), _
 		( FBC_OPT_UNDERSCORE	, @"underscore"  ), _
 		( FBC_OPT_SHOWSUSPERR	, @"showsusperr" ), _
@@ -223,6 +225,17 @@ declare sub getDefaultLibs _
 		print "Configured as standalone"
 #endif
 
+#ifdef DISABLE_OBJINFO
+		print "objinfo disabled"
+#else
+		print "objinfo enabled ";
+#ifdef USE_FB_BFD_HEADER
+		print "using FB BFD header version " & __BFD_VER__
+#else
+		print "using C BFD wrapper"
+#endif
+#endif
+
     	print
     	if( fbc.showversion ) then
     		fbcEnd( 0 )
@@ -230,7 +243,7 @@ declare sub getDefaultLibs _
     end if
 
     ''
-    fbSetPaths( fbGetOption( FB_COMPOPT_TARGET ) )
+    fbSetPaths( )
 
     ''
     setMainModule( )
@@ -408,21 +421,31 @@ private sub initTarget( )
 	case FB_COMPTARGET_FREEBSD
 		fbcInit_freebsd( )
 #endif
+
+#if defined(TARGET_OPENBSD) or defined(CROSSCOMP_OPENBSD)
+	case FB_COMPTARGET_OPENBSD
+		fbcInit_openbsd( )
+#endif
+
+#if defined(TARGET_DARWIN) or defined(CROSSCOMP_DARWIN)
+	case FB_COMPTARGET_DARWIN
+		fbcInit_darwin( )
+#endif
+
+#if defined(TARGET_NETBSD) or defined(CROSSCOMP_NETBSD)
+	case FB_COMPTARGET_NETBSD
+		fbcInit_netbsd( )
+#endif
+
+	case else
+		print "unsupported target in " & __FILE__
+
 	end select
 
 end sub
 
 '':::::
 private sub setCompOptions( )
-
-	select case fbGetOption( FB_COMPOPT_TARGET )
-	case FB_COMPTARGET_LINUX
-		fbSetOption( FB_COMPOPT_NOSTDCALL, TRUE )
-		fbSetOption( FB_COMPOPT_NOUNDERPREFIX, TRUE )
-
-	case FB_COMPTARGET_DOS
-		fbSetOption( FB_COMPOPT_NOSTDCALL, TRUE )
-	end select
 
 end sub
 
@@ -559,6 +582,7 @@ private function assembleFile_GAS _
 
 	static as string path
 	static as integer has_path = FALSE
+	static as integer res
 
     if( has_path = FALSE ) then
     	has_path = TRUE
@@ -574,7 +598,15 @@ private function assembleFile_GAS _
     	print "assembling: ", path + " " + cmdline
     end if
 
-    function = (exec( path, cmdline ) = 0)
+	res = exec( path, cmdline )
+	if( res <> 0 ) then
+		if( fbc.verbose ) then
+			print "assembling failed: returned error code " & res
+		end if
+	end if
+
+	function = (res = 0)
+
 
 end function
 
@@ -623,6 +655,7 @@ private function assembleFile_GCC _
 
 	static as string path
 	static as integer has_path = FALSE
+	static as integer res
 
 	if( has_path = FALSE ) then
 		has_path = TRUE
@@ -638,7 +671,15 @@ private function assembleFile_GCC _
 		print "assembling: ", path + " " + cmdline
 	end if
 
-	function = (exec( path, cmdline ) = 0)
+	res = exec( path, cmdline )
+	if( res <> 0 ) then
+		if( fbc.verbose ) then
+			print "assembling failed: returned error code " & res
+		end if
+	end if
+
+	function = (res = 0)
+
 
 end function
 
@@ -1096,6 +1137,21 @@ private function processTargetOptions _
 					fbSetOption( FB_COMPOPT_TARGET, FB_COMPTARGET_FREEBSD )
 #endif
 
+#if defined(TARGET_OPENBSD) or defined(CROSSCOMP_OPENBSD)
+				case "openbsd"
+					fbSetOption( FB_COMPOPT_TARGET, FB_COMPTARGET_OPENBSD )
+#endif
+
+#if defined(TARGET_DARWIN) or defined(CROSSCOMP_DARWIN)
+				case "darwin"
+					fbSetOption( FB_COMPOPT_TARGET, FB_COMPTARGET_DARWIN )
+#endif
+
+#if defined(TARGET_NETBSD) or defined(CROSSCOMP_NETBSD)
+				case "netbsd"
+					fbSetOption( FB_COMPOPT_TARGET, FB_COMPTARGET_NETBSD )
+#endif
+
 				case else
 					printInvalidOpt( arg, FB_ERRMSG_INVALIDCMDOPTION )
 					return FALSE
@@ -1237,18 +1293,6 @@ private function processOptions _
 
 			case FBC_OPT_EXPORT
 				fbSetOption( FB_COMPOPT_EXPORT, TRUE )
-
-			case FBC_OPT_NOSTDCALL
-				fbSetOption( FB_COMPOPT_NOSTDCALL, TRUE )
-
-			case FBC_OPT_STDCALL
-				fbSetOption( FB_COMPOPT_NOSTDCALL, FALSE )
-
-			case FBC_OPT_NOUNDERSCORE
-				fbSetOption( FB_COMPOPT_NOUNDERPREFIX, TRUE )
-
-			case FBC_OPT_UNDERSCORE
-				fbSetOption( FB_COMPOPT_NOUNDERPREFIX, FALSE )
 
 			case FBC_OPT_SHOWSUSPERR
 				fbSetOption( FB_COMPOPT_SHOWSUSPERRORS, FALSE )
@@ -1852,7 +1896,7 @@ private sub printOptions( )
 	select case fbGetOption( FB_COMPOPT_TARGET )
 	case FB_COMPTARGET_WIN32, FB_COMPTARGET_CYGWIN
 		printOption( "", "*.rc = resource script, *.res = compiled resource" )
-	case FB_COMPTARGET_LINUX, FB_COMPTARGET_FREEBSD
+	case FB_COMPTARGET_LINUX, FB_COMPTARGET_FREEBSD, FB_COMPTARGET_OPENBSD
 		printOption( "", "*.xpm = icon resource" )
 	end select
 
@@ -1861,7 +1905,10 @@ private sub printOptions( )
 	defined(CROSSCOMP_DOS) or _
 	defined(CROSSCOMP_LINUX) or _
 	defined(CROSSCOMP_XBOX) or _
-	defined(CROSSCOMP_FREEBSD)
+	defined(CROSSCOMP_FREEBSD) or _
+	defined(CROSSCOMP_OPENBSD) or _
+	defined(CROSSCOMP_DARWIN) or _
+	defined(CROSSCOMP_NETBSD)
 
 	print
 	print "invoke as 'fbc -target PLATFORM' alone to show options for cross compilation to that platform"
@@ -1878,7 +1925,7 @@ private sub printOptions( )
 	printOption( "-C", "Do not delete the object file(s)" )
 	printOption( "-d <name=val>", "Add a preprocessor's define" )
 	select case fbGetOption( FB_COMPOPT_TARGET )
-	case FB_COMPTARGET_WIN32, FB_COMPTARGET_LINUX, FB_COMPTARGET_FREEBSD
+	case FB_COMPTARGET_WIN32, FB_COMPTARGET_LINUX, FB_COMPTARGET_FREEBSD, FB_COMPTARGET_OPENBSD, FB_COMPTARGET_DARWIN, FB_COMPTARGET_NETBSD
 		printOption( "-dll", "Same as -dylib" )
 		if( fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_WIN32 ) then
 			printOption( "-dylib", "Create a DLL, including the import library" )
@@ -1924,10 +1971,19 @@ private sub printOptions( )
 	defined(CROSSCOMP_DOS) or _
 	defined(CROSSCOMP_LINUX) or _
 	defined(CROSSCOMP_XBOX) or _
-	defined(CROSSCOMP_FREEBSD)
+	defined(CROSSCOMP_FREEBSD) or _
+	defined(CROSSCOMP_OPENBSD) or _
+	defined(CROSSCOMP_DARWIN) or _
+	defined(CROSSCOMP_NETBSD)
+
+	' note: alphabetical order
+
 	desc = " Cross-compile to:"
  #ifdef CROSSCOMP_CYGWIN
 	desc += " cygwin"
+ #endif
+ #ifdef CROSSCOMP_DARWIN
+	desc += " darwin"
  #endif
  #ifdef CROSSCOMP_DOS
 	desc += " dos"
@@ -1937,6 +1993,12 @@ private sub printOptions( )
  #endif
  #ifdef CROSSCOMP_LINUX
 	desc += " linux"
+ #endif
+ #ifdef CROSSCOMP_NETBSD
+	desc += " netbsd"
+ #endif
+ #ifdef CROSSCOMP_OPENBSD
+	desc += " openbsd"
  #endif
  #ifdef CROSSCOMP_WIN32
 	desc += " win32"

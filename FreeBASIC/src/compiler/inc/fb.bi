@@ -101,6 +101,18 @@ const FB_HOST_PATHDIV       = RSLASH
 const FB_HOST               = "freebsd"
 const FB_HOST_EXEEXT        = ""
 const FB_HOST_PATHDIV       = "/"
+#elseif defined(__FB_OPENBSD__)
+const FB_HOST               = "openbsd"
+const FB_HOST_EXEEXT        = ""
+const FB_HOST_PATHDIV       = "/"
+#elseif defined(__FB_DARWIN__)
+const FB_HOST               = "darwin"
+const FB_HOST_EXEEXT        = ""
+const FB_HOST_PATHDIV       = "/"
+#elseif defined(__FB_NETBSD__)
+const FB_HOST               = "netbsd"
+const FB_HOST_EXEEXT        = ""
+const FB_HOST_PATHDIV       = "/"
 #else
 #error Unsupported host
 #endif
@@ -186,6 +198,9 @@ enum FB_COMPTARGET
 	FB_COMPTARGET_DOS
 	FB_COMPTARGET_XBOX
 	FB_COMPTARGET_FREEBSD
+	FB_COMPTARGET_OPENBSD
+	FB_COMPTARGET_DARWIN
+	FB_COMPTARGET_NETBSD
 end enum
 
 #if defined(TARGET_WIN32)
@@ -206,6 +221,15 @@ const FB_DEFAULT_TARGET = FB_COMPTARGET_XBOX
 #elseif defined(TARGET_FREEBSD)
 const FB_TARGET         = "freebsd"
 const FB_DEFAULT_TARGET = FB_COMPTARGET_FREEBSD
+#elseif defined(TARGET_OPENBSD)
+const FB_TARGET         = "openbsd"
+const FB_DEFAULT_TARGET = FB_COMPTARGET_OPENBSD
+#elseif defined(TARGET_DARWIN)
+const FB_TARGET         = "darwin"
+const FB_DEFAULT_TARGET = FB_COMPTARGET_DARWIN
+#elseif defined(TARGET_NETBSD)
+const FB_TARGET         = "netbsd"
+const FB_DEFAULT_TARGET = FB_COMPTARGET_NETBSD
 #else
 #error Unsupported target
 #endif
@@ -268,8 +292,6 @@ type FBCMMLINEOPT
 	cputype			as FB_CPUTYPE
 	fputype			as FB_FPUTYPE
 	errorcheck		as integer					'' runtime error check (def= false)
-	nostdcall		as integer
-	nounderprefix	as integer					'' don't add underscore's the function names
 	outtype			as FB_OUTTYPE
 	resumeerr 		as integer					'' add support for RESUME (def= false)
 	warninglevel	as integer					'' (def = 0)
@@ -351,22 +373,6 @@ type FBS_LIB
 	hashindex		as uinteger
 end type
 
-'' if this is changed, be sure to update fbc.bas::gccLibFileNameTb()
-enum GCC_LIB
-	CRT1_O
-	CRTBEGIN_O
-	CRTEND_O
-	CRTI_O
-	CRTN_O
-	GCRT1_O
-	LIBGCC_A
-	LIBSUPC_A
-	LIBC_SO
-	GCC_LIBS
-end enum
-
-extern gccLibFileNameTb( 0 to GCC_LIBS - 1 ) as zstring ptr
-
 #include once "inc\error.bi"
 #include once "inc\fb-obj.bi"
 
@@ -397,7 +403,6 @@ declare function fbCheckRestartCompile _
 
 declare sub fbSetPaths _
 	( _
-		byval target as integer _
 	)
 
 declare function fbGetPath _
@@ -522,22 +527,28 @@ declare function fbIsCrossComp _
 	( _
 	) as integer
 
+declare sub fbAddGccLib _
+	( _
+		byval lib_filename as zstring ptr, _
+		byval lib_id as integer _
+	)
+
 declare function fbGetGccLib _
 	( _
-		byval lib_id as GCC_LIB _
+		byval lib_id as integer _
 	) as string
 
 declare sub fbSetGccLib _
 	( _
-		byval lib_id as GCC_LIB, _
+		byval lib_id as integer, _
 		byref lib_name as string _
 	)
 
 declare function fbFindGccLib _
 	( _
-		byval lib_id as GCC_LIB _
+		byval lib_id as integer _
 	) as string
-	
+
 declare sub fbGetDefaultLibs _
 	( _
 		byval dstlist as TLIST ptr, _

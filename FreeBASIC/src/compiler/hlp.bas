@@ -23,6 +23,7 @@
 
 #include once "inc\fb.bi"
 #include once "inc\fbint.bi"
+#include once "inc\fbc.bi"
 #include once "inc\ir.bi"
 #include once "inc\lex.bi"
 #include once "inc\dstr.bi"
@@ -289,22 +290,12 @@ function hStripUnderscore _
 	( _
 		byval symbol as zstring ptr _
 	) as string static
-
-	select case as const env.clopt.target
-    case FB_COMPTARGET_WIN32, FB_COMPTARGET_CYGWIN
-	    if( env.clopt.nostdcall = FALSE ) then
-			function = *(symbol + 1)
-		else
-			function = *symbol
-		end if
-
-    case FB_COMPTARGET_DOS, FB_COMPTARGET_XBOX
-    	function = *(symbol + 1)
-
-    case FB_COMPTARGET_LINUX
-    	function = *symbol
-
-    end select
+	
+	if env.target.underprefix then
+		function = *(symbol + 1)
+	else
+		function = *symbol
+	end if
 
 end function
 
@@ -436,7 +427,8 @@ end function
 function hRevertSlash _
 	( _
 		byval src as zstring ptr, _
-		byval allocnew as integer _
+		byval allocnew as integer, _
+		byval repchar as integer _
 	) as zstring ptr static
 
     dim as zstring ptr res
@@ -447,8 +439,8 @@ function hRevertSlash _
 
 		for i = 0 to len( *src )-1
 			c = src[i]
-			if( c = CHAR_RSLASH ) then
-				c = CHAR_SLASH
+			if( (c = CHAR_RSLASH) or (c = CHAR_SLASH) ) then
+				c = repchar
 			end if
 			res[i] = c
 		next
@@ -459,8 +451,8 @@ function hRevertSlash _
 
 	else
 		for i = 0 to len( *src )-1
-			if( src[i] = CHAR_RSLASH ) then
-				src[i] = CHAR_SLASH
+			if( (src[i] = CHAR_RSLASH) or (src[i] = CHAR_SLASH) ) then
+				src[i] = repchar
 			end if
 		next
 
@@ -705,11 +697,7 @@ function hEnvDir( ) as string static
 			path = left( path, len( path ) - 1 )
 
 			'' add leading slash
-#if defined(__FB_WIN32__) or defined(__FB_DOS__)
-			path = RSLASH + path
-#else
-			path = "/" + path
-#endif
+			path = FB_HOST_PATHDIV + path
 
 		else
 			path = ""
@@ -719,4 +707,22 @@ function hEnvDir( ) as string static
 
 	end if
 
+end function
+
+function hIsValidSymbolName( byval sym as zstring ptr ) as integer
+	
+	if( sym = NULL ) then exit function
+	
+	var symlen = len( *sym )
+	
+	if( symlen = 0 ) then exit function
+	
+	if( (hIsChar(sym[0]) orelse (sym[0] = asc("_"))) = FALSE ) then exit function
+	
+	for i as integer = 1 to symlen-1
+		if( ((hIsChar(sym[0])) orelse (sym[0] = asc("_")) orelse (hIsCharNumeric(sym[i]))) = FALSE ) then exit function
+	next
+	
+	function = TRUE
+	
 end function

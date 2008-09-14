@@ -748,12 +748,13 @@ private sub hReadFloatNumber _
 		byref pnum as zstring ptr, _
 		byref tlen as integer, _
 		byref dtype as integer, _
+		byval hasdot as integer, _
 		byval flags as LEXCHECK _
 	)
 
-    dim as uinteger c = any
-    dim as integer llen = any
-    dim as integer skipchar = any
+	dim as uinteger c = any
+	dim as integer llen = any
+	dim as integer skipchar = any
 
 	dtype = fbLangGetDefLiteral( DOUBLE )
 	llen = tlen
@@ -789,16 +790,30 @@ private sub hReadFloatNumber _
 			end if
 		end if
 	loop
-	
+
+	if( tlen > 7 + iif( hasdot, 1, 0 ) ) then
+		dtype = FB_DATATYPE_DOUBLE
+	end if
+
 	'' [FSUFFIX | { EXPCHAR [opadd] DIGIT { DIGIT } } | ]
 	select case as const lexCurrentChar( )
 	'' 'e', 'E', 'd', 'D'?
 	case CHAR_ELOW, CHAR_EUPP, CHAR_DLOW, CHAR_DUPP
 		'' EXPCHAR
+
 		c = lexEatChar( )
 
+		if( c = CHAR_DLOW or c = CHAR_DUPP ) then
+			dtype = FB_DATATYPE_DOUBLE
+		end if
+
 		if( skipchar = FALSE ) then
-			*pnum = CHAR_ELOW
+			if( flags = LEXCHECK_EVERYTHING ) then
+				'' make sure exp char is an 'e'
+				'' (Val should accept 'd's, so may not be necessary now...)
+				c = CHAR_ELOW
+			end if
+			*pnum = c
 			pnum += 1
 			tlen += 1
 		end if
@@ -845,7 +860,8 @@ private sub hReadFloatNumber _
 		loop
 		
 	end select
-	
+
+
 	select case as const lexCurrentChar( )
 	'' '!', 'F', 'f'?
 	case FB_TK_SGNTYPECHAR, CHAR_FUPP, CHAR_FLOW
@@ -865,12 +881,14 @@ private sub hReadFloatNumber _
         
 	end select
 
-	if( tlen - llen = 0 ) then
-		'' '0'
-		*pnum = CHAR_0
-		pnum += 1
-		tlen += 1
-	end if
+	if( flags = LEXCHECK_EVERYTHING ) then
+		if( tlen - llen = 0 ) then
+			'' '0'
+			*pnum = CHAR_0
+			pnum += 1
+			tlen += 1
+		end if
+	endif
 
 end sub
 
@@ -897,8 +915,8 @@ private sub hReadNumber _
 
 	dim as uinteger c = any
 	dim as integer isfloat = any, issigned = any, isshort = any, islong = any, forcedsign = any
-	dim as ulongint value = any
-	dim as integer skipchar = any
+	dim as ulongint value = any, value_prev = any
+	dim as integer skipchar = any, hasdot = any
 
 	isfloat    = FALSE
 	issigned   = TRUE
@@ -965,9 +983,12 @@ read_char:
 						pnum += 1
 						tlen += 1
 					end if
+					hasdot = TRUE
+				else
+					hasdot = FALSE
 				end if
 
-				hReadFloatNumber( pnum, tlen, dtype, flags )
+				hReadFloatNumber( pnum, tlen, dtype, hasdot, flags )
 				exit do
 
 			case else
@@ -1002,11 +1023,13 @@ read_char:
 						if( value > 9223372036854775807ULL ) then
 							issigned = FALSE
 						end if
+						value_prev = value
 
 					case 20
 						issigned = FALSE
 						if( (flags and LEXCHECK_NOLINECONT) = 0 ) then
-							if( (value and &h8000000000000000ULL) = 0 ) then
+							if( value_prev > 1844674407370955161ULL or _
+							   (value and &h8000000000000000ULL) = 0 ) then
 								errReportWarn( FB_WARNINGMSG_NUMBERTOOBIG )
 								skipchar = TRUE
 							end if
@@ -1051,7 +1074,7 @@ read_char:
 		*pnum = CHAR_DOT
 		pnum += 1
 		tlen = 1
-        hReadFloatNumber( pnum, tlen, dtype, flags )
+		hReadFloatNumber( pnum, tlen, dtype, TRUE, flags )
 
 	'' hex, oct, bin
 	case CHAR_AMP
@@ -1219,20 +1242,13 @@ private sub hReadString _
 	end if
 
 	do
-		select case as const lexCurrentChar( )
-		'' EOF or EOL?
-		case 0, CHAR_CR, CHAR_LF
-			' Only warn if not in comments
-			if (flags and (LEXCHECK_NOLINECONT or LEXCHECK_NOSUFFIX)) = 0 then
-				errReportWarn( FB_WARNINGMSG_NOCLOSINGQUOTE )
-			end if
-			exit do
+		char = lexCurrentChar( )
 
 		'' '"'?
-		case CHAR_QUOTE
+		if( char = CHAR_QUOTE ) then
 			lexEatChar( )
 
-			'' copy quotes? (whether double or not)
+			'' copy quote? (even if first of a double)
 			if( (flags and LEXCHECK_NOQUOTES) <> 0 ) then
 				if( skipchar = FALSE ) then
 					*ps = CHAR_QUOTE
@@ -1242,10 +1258,23 @@ private sub hReadString _
 			end if
 
 			'' not a double-quote? then it's the closing quote
-			if( lexCurrentChar( ) <> CHAR_QUOTE ) then exit do
+			char = lexCurrentChar( )
+			if( char <> CHAR_QUOTE ) then exit do
+
+		'' '\27' (internal escape char)
+		elseif( char = FB_INTSCAPECHAR ) then
+
+			'' escape it?
+			if( (flags and LEXCHECK_NOQUOTES) = 0 ) then
+				if( skipchar = FALSE ) then
+					*ps = FB_INTSCAPECHAR
+					ps += 1
+					lgt += 1
+				end if
+			end if
 
 		'' '\'?
-		case CHAR_RSLASH
+		elseif( char = CHAR_RSLASH ) then
 			hasesc = TRUE
 
 			'' escaping on? needed or "\\" would fail..
@@ -1258,12 +1287,23 @@ private sub hReadString _
 					lgt += 1
 				end if
 
-				lexCurrentChar( )
+				char = lexCurrentChar( )
 			end if
+
+		end if
+
+		select case char
+		'' EOF or EOL?
+		case 0, CHAR_CR, CHAR_LF
+			'' only warn if not in comments
+			if (flags and (LEXCHECK_NOLINECONT or LEXCHECK_NOSUFFIX)) = 0 then
+				errReportWarn( FB_WARNINGMSG_NOCLOSINGQUOTE )
+			end if
+			exit do
 
 		end select
 
-		char = lexEatChar( )
+		lexEatChar( )
 
 		if( skipchar = FALSE ) then
 			'' no more room?
@@ -1327,17 +1367,13 @@ private sub hReadWStr _
 	end if
 
 	do
-		select case as const lexCurrentChar( )
-		'' EOF or EOL?
-		case 0, CHAR_CR, CHAR_LF
-			errReportWarn( FB_WARNINGMSG_NOCLOSINGQUOTE )
-			exit do
+		char = lexCurrentChar( )
 
 		'' '"'?
-		case CHAR_QUOTE
+		if( char = CHAR_QUOTE ) then
 			lexEatChar( )
 
-			'' copy quotes? (whether double or not)
+			'' copy quote? (even if first of a double)
 			if( (flags and LEXCHECK_NOQUOTES) <> 0 ) then
 				if( skipchar = FALSE ) then
 					*ps = CHAR_QUOTE
@@ -1347,10 +1383,23 @@ private sub hReadWStr _
 			end if
 
 			'' not a double-quote? then it's the closing quote
-			if( lexCurrentChar( ) <> CHAR_QUOTE ) then exit do
+			char = lexCurrentChar( )
+			if( char <> CHAR_QUOTE ) then exit do
+
+		'' '\27' (internal escape char)
+		elseif( char = FB_INTSCAPECHAR ) then
+
+			'' escape it?
+			if( (flags and LEXCHECK_NOQUOTES) = 0 ) then
+				if( skipchar = FALSE ) then
+					*ps = FB_INTSCAPECHAR
+					ps += 1
+					lgt += 1
+				end if
+			end if
 
 		'' '\'?
-		case CHAR_RSLASH
+		elseif( char = CHAR_RSLASH ) then
 			hasesc = TRUE
 
 			'' escaping on? needed or "\\" would fail..
@@ -1363,12 +1412,23 @@ private sub hReadWStr _
 					lgt += 1
 				end if
 
-				lexCurrentChar( )
+				char = lexCurrentChar( )
 			end if
+
+		end if
+
+		select case char
+		'' EOF or EOL?
+		case 0, CHAR_CR, CHAR_LF
+			'' only warn if not in comments
+			if (flags and (LEXCHECK_NOLINECONT or LEXCHECK_NOSUFFIX)) = 0 then
+				errReportWarn( FB_WARNINGMSG_NOCLOSINGQUOTE )
+			end if
+			exit do
 
 		end select
 
-		char = lexEatChar( )
+		lexEatChar( )
 
 		if( skipchar = FALSE ) then
 			'' no more room?
@@ -1388,6 +1448,7 @@ private sub hReadWStr _
 				lgt += 1
 			end if
 		end if
+
 	loop
 
 	'' null-term

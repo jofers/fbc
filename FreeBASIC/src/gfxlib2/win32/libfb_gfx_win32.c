@@ -41,12 +41,14 @@ const GFXDRIVER *__fb_gfx_drivers_list[] = {
 };
 
 static const struct { const char *name; FARPROC *proc; } user32_procs[] = {
-  {"SetLayeredWindowAttributes", (FARPROC *)&fb_win32.SetLayeredWindowAttributes},
-  {"MonitorFromWindow",          (FARPROC *)&fb_win32.MonitorFromWindow         },
-  {"MonitorFromPoint",           (FARPROC *)&fb_win32.MonitorFromPoint          },
-  {"FlashWindowEx",              (FARPROC *)&fb_win32.FlashWindowEx             },
-  {"TrackMouseEvent",            (FARPROC *)&fb_win32.TrackMouseEvent           }
- };
+	{"SetLayeredWindowAttributes", (FARPROC *)&fb_win32.SetLayeredWindowAttributes},
+	{"MonitorFromWindow",          (FARPROC *)&fb_win32.MonitorFromWindow         },
+	{"MonitorFromPoint",           (FARPROC *)&fb_win32.MonitorFromPoint          },
+	{"FlashWindowEx",              (FARPROC *)&fb_win32.FlashWindowEx             },
+	{"TrackMouseEvent",            (FARPROC *)&fb_win32.TrackMouseEvent           },
+	{"GetMonitorInfoA",            (FARPROC *)&fb_win32.GetMonitorInfo            },
+	{"ChangeDisplaySettingsExA",   (FARPROC *)&fb_win32.ChangeDisplaySettingsEx   }
+};
 
 static CRITICAL_SECTION update_lock;
 static HANDLE handle;
@@ -618,8 +620,7 @@ void fb_hWin32Exit(void)
 	
 	fb_win32.is_running = FALSE;
 	
-	if (__fb_gfx->flags & SCREEN_LOCKED) {
-		__fb_gfx->flags &= ~(SCREEN_LOCKED);
+	if (__fb_gfx->lock_count != 0) {
 		__fb_gfx->lock_count = 0;
 		__fb_gfx->driver->unlock();
 	}
@@ -731,10 +732,10 @@ void fb_hWin32SetMouse(int x, int y, int cursor, int clip)
 /*:::::*/
 void fb_hWin32SetWindowTitle(char *title)
 {
-	if (__fb_gfx->flags & SCREEN_LOCKED)
+	if (__fb_gfx->lock_count != 0)
 		LeaveCriticalSection(&update_lock);
 	SetWindowText(fb_win32.wnd, title);
-	if (__fb_gfx->flags & SCREEN_LOCKED)
+	if (__fb_gfx->lock_count != 0)
 		EnterCriticalSection(&update_lock);
 }
 

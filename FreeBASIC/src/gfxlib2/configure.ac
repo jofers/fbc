@@ -55,9 +55,24 @@ case "$target" in
 		;;
 	*-*-solaris* )
 		AC_DEFINE([TARGET_SOLARIS],1,[Solaris build])
+		AC_DEFINE([TARGET_BASE_UNIX],1,[Unix base build])
 		FBGFX_BASE=x11
 		FBRT_TARGET_BASE=unix
 		FBRT_TARGET=solaris
+		;;
+	*-*-openbsd* )
+		AC_DEFINE([TARGET_OPENBSD],1,[OpenBSD build])
+		AC_DEFINE([TARGET_BASE_UNIX],1,[Unix base build])
+		FBGFX_BASE=x11
+		FBRT_TARGET_BASE=unix
+		FBRT_TARGET=openbsd
+		;;
+	*-*-netbsd* )
+		AC_DEFINE([TARGET_NETBSD],1,[NetBSD build])
+		AC_DEFINE([TARGET_BASE_UNIX],1,[Unix base build])
+		FBGFX_BASE=x11
+		FBRT_TARGET_BASE=unix
+		FBRT_TARGET=netbsd
 		;;
 	*)
 		AC_MSG_ERROR([Unsupported target])

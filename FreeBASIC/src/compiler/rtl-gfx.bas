@@ -23,6 +23,7 @@
 
 #include once "inc\fb.bi"
 #include once "inc\fbint.bi"
+#include once "inc\fbc.bi"
 #include once "inc\ast.bi"
 #include once "inc\lex.bi"
 #include once "inc\rtl.bi"
@@ -540,8 +541,8 @@ declare function hPorts_cb _
 	 			) _
 	 		} _
 		), _
-		/' fb_GfxScreenQB ( byval mode as integer, byval active as integer = 0,
-							byval visible as integer = 0 ) as integer '/ _
+		/' fb_GfxScreenQB ( byval mode as integer, byval active as integer = -1,
+							byval visible as integer = -1 ) as integer '/ _
 		( _
 			@FB_RTL_GFXSCREENSETQB, NULL, _
 			FB_DATATYPE_INTEGER, FB_FUNCMODE_STDCALL, _
@@ -552,10 +553,10 @@ declare function hPorts_cb _
 					FB_DATATYPE_INTEGER, FB_PARAMMODE_BYVAL, FALSE _
 				), _
 				( _
- 					FB_DATATYPE_INTEGER, FB_PARAMMODE_BYVAL, TRUE, 0 _
+ 					FB_DATATYPE_INTEGER, FB_PARAMMODE_BYVAL, TRUE, -1 _
 				), _
 				( _
-					FB_DATATYPE_INTEGER, FB_PARAMMODE_BYVAL, TRUE, 0 _
+					FB_DATATYPE_INTEGER, FB_PARAMMODE_BYVAL, TRUE, -1 _
 	 			) _
 	 		} _
 		), _
@@ -1618,24 +1619,8 @@ private function hGfxlib_cb _
 
 		symbAddLib( "fbgfx" )
 
-		select case as const env.clopt.target
-		case FB_COMPTARGET_WIN32, FB_COMPTARGET_CYGWIN
-			symbAddLib( "user32" )
-			symbAddLib( "gdi32" )
-			symbAddLib( "winmm" )
+		fbc.vtbl.addGfxLibs( )
 
-		case FB_COMPTARGET_LINUX, FB_COMPTARGET_FREEBSD
-#if defined( TARGET_LINUX ) or defined( TARGET_FREEBSD )
-			symbAddLibPath( "/usr/X11R6/lib" )
-#endif
-
-			symbAddLib( "X11" )
-			symbAddLib( "Xext" )
-			symbAddLib( "Xpm" )
-			symbAddLib( "Xrandr" )
-			symbAddLib( "Xrender" )
-
-		end select
 	end if
 
 	return TRUE
@@ -2830,7 +2815,7 @@ function rtlGfxScreenSetQB _
 
  	'' byval active as integer
  	if( active = NULL ) then
- 		active = astNewCONSTi( 8, FB_DATATYPE_INTEGER )
+ 		active = astNewCONSTi( -1, FB_DATATYPE_INTEGER )
  	end if
  	if( astNewARG( proc, active ) = NULL ) then
  		exit function
@@ -2838,7 +2823,7 @@ function rtlGfxScreenSetQB _
 
  	'' byval visible as integer
  	if( visible = NULL ) then
- 		visible = astNewCONSTi( 0, FB_DATATYPE_INTEGER )
+ 		visible = astNewCONSTi( -1, FB_DATATYPE_INTEGER )
  	end if
  	if( astNewARG( proc, visible ) = NULL ) then
  		exit function

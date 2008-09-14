@@ -1531,6 +1531,34 @@ _ACEOF
 		FBRT_TARGET_BASE=unix
 		FBRT_TARGET=darwin
 		;;
+	*-*-openbsd* )
+
+cat >>confdefs.h <<\_ACEOF
+#define TARGET_OPENBSD 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define TARGET_BASE_UNIX 1
+_ACEOF
+
+		FBRT_TARGET_BASE=unix
+		FBRT_TARGET=openbsd
+		;;
+	*-*-netbsd* )
+
+cat >>confdefs.h <<\_ACEOF
+#define TARGET_NETBSD 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define TARGET_BASE_UNIX 1
+_ACEOF
+
+		FBRT_TARGET_BASE=unix
+		FBRT_TARGET=netbsd
+		;;
 	*)
 		{ { echo "$as_me:$LINENO: error: Unsupported target" >&5
 echo "$as_me: error: Unsupported target" >&2;}

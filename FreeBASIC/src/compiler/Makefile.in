@@ -84,6 +84,10 @@ ifeq (@FBC_HOST@,cygwin)
 	FBC_LIBS += -l intl
 endif
 
+ifeq (@FBC_HOST@,darwin)
+	DEFS := -d HOST_DARWIN
+endif
+
 ifeq (@FBC_HOST@,dos)
 	DEFS := -d HOST_DOS
 	FBC_LIBS += -l intl
@@ -91,11 +95,24 @@ endif
 
 ifeq (@FBC_HOST@,freebsd)
 	DEFS := -d HOST_FREEBSD
-	FBC_LIBS += -l intl
+	ifeq (@FBC_OBJINFO@,objinfo)
+		FBC_LIBS += -l intl
+	endif
 endif
 
 ifeq (@FBC_HOST@,linux)
 	DEFS := -d HOST_LINUX
+endif
+
+ifeq (@FBC_HOST@,netbsd)
+	DEFS := -d HOST_NETBSD
+endif
+
+ifeq (@FBC_HOST@,openbsd)
+	DEFS := -d HOST_OPENBSD
+	ifeq (@FBC_OBJINFO@,objinfo)
+		FBC_LIBS += -l intl
+	endif
 endif
 
 ifeq (@FBC_HOST@,win32)
@@ -115,6 +132,11 @@ ifeq (@FBC_TARGET@,cygwin)
 	DEFS += -d TARGET_CYGWIN
 endif
 
+ifeq (@FBC_TARGET@,darwin)
+	FBC_OSDEPSRCS := fbc_darwin.bas
+	DEFS += -d TARGET_DARWIN
+endif
+
 ifeq (@FBC_TARGET@,dos)
 	FBC_OSDEPSRCS := fbc_dos.bas
 	DEFS += -d TARGET_DOS
@@ -128,6 +150,16 @@ endif
 ifeq (@FBC_TARGET@,linux)
 	FBC_OSDEPSRCS := fbc_linux.bas
 	DEFS += -d TARGET_LINUX
+endif
+
+ifeq (@FBC_TARGET@, netbsd)
+	FBC_OSDEPSRCS := fbc_netbsd.bas
+	DEFS += -d TARGET_NETBSD
+endif
+
+ifeq (@FBC_TARGET@,openbsd)
+	FBC_OSDEPSRCS := fbc_openbsd.bas
+	DEFS += -d TARGET_OPENBSD
 endif
 
 ifeq (@FBC_TARGET@,win32)
@@ -150,6 +182,11 @@ ifeq (@FBC_CROSSCOMP_CYGWIN@,yes)
 	DEFS += -d CROSSCOMP_CYGWIN
 endif
 
+ifeq (@FBC_CROSSCOMP_DARWIN@,yes)
+	FBC_OSDEPSRCS += fbc_darwin.bas
+	DEFS += -d CROSSCOMP_DARWIN
+endif
+
 ifeq (@FBC_CROSSCOMP_DOS@,yes)
 	FBC_OSDEPSRCS += fbc_dos.bas
 	DEFS += -d CROSSCOMP_DOS
@@ -163,6 +200,16 @@ endif
 ifeq (@FBC_CROSSCOMP_LINUX@,yes)
 	FBC_OSDEPSRCS += fbc_linux.bas
 	DEFS += -d CROSSCOMP_LINUX
+endif
+
+ifeq (@FBC_CROSSCOMP_NETBSD@,yes)
+	FBC_OSDEPSRCS += fbc_netbsd.bas
+	DEFS += -d CROSSCOMP_NETBSD
+endif
+
+ifeq (@FBC_CROSSCOMP_OPENBSD@,yes)
+	FBC_OSDEPSRCS += fbc_openbsd.bas
+	DEFS += -d CROSSCOMP_OPENBSD
 endif
 
 ifeq (@FBC_CROSSCOMP_WIN32@,yes)
@@ -371,7 +418,7 @@ info:
 install-info:
 install-man:
 install:
-	cp -v fbc_new$(EXEEXT) ../../../../fbc$(EXEEXT)
+	cp fbc_new$(EXEEXT) ../../../../fbc$(EXEEXT)
 
 .PHONY: installdirs install install-strip mostlyclean clean distclean \
   maintainer-clean check installcheck dvi html info install-info \
