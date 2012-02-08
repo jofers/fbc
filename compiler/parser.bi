@@ -46,6 +46,7 @@ type FB_CMPSTMT_FOR
 	cnt				as FB_CMPSTMT_FORELM
 	end            	as FB_CMPSTMT_FORELM
 	stp				as FB_CMPSTMT_FORELM
+    container       as FB_CMPSTMT_FORELM
 	ispos			as FB_CMPSTMT_FORELM
 	testlabel		as FBSYMBOL ptr
 	inilabel		as FBSYMBOL ptr
@@ -53,6 +54,7 @@ type FB_CMPSTMT_FOR
 	endlabel		as FBSYMBOL ptr
 	last			as FB_CMPSTMTSTK_ ptr
 	explicit_step   as integer
+    isforeach       as integer
 end type
 
 type FB_CMPSTMT_IF
@@ -208,6 +210,7 @@ enum FB_OPEROPTS
 	FB_OPEROPTS_SELF			= &h00000002
 	FB_OPEROPTS_ASSIGN			= &h00000004
 	FB_OPEROPTS_RELATIVE		= &h00000008
+    FB_OPEROPTS_INC             = &h00000010
 
 	FB_OPEROPTS_DEFAULT			= &hffffffff
 end enum
@@ -462,7 +465,7 @@ declare function cIfStmtEnd _
 
 declare function cForStmtBegin _
 	( _
-		_
+        byval keywd as integer _
 	) as integer
 
 declare function cForStmtEnd _

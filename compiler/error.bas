@@ -311,7 +311,10 @@ end type
 		@"CLASS, TYPE or UNION has no constructor", _
 		@"Symbol type has no Run-Time Type Info (RTTI)", _
 		@"Types have no hierarchical relation", _
-		@"Expected a CLASS, TYPE or UNION symbol type" _
+		@"Expected a CLASS, TYPE or UNION symbol type", _
+        @"Expected IN", _
+        @"UDT is not compatible with FOREACH", _
+        @"Iterator UDT is not compatible with FOREACH" _
 	}
 
 

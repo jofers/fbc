@@ -298,7 +298,7 @@ function cOperator _
     	return AST_OP_NEXT
 
 	case CHAR_PLUS
-		op = AST_OP_ADD
+        op = AST_OP_ADD
 
 	case CHAR_MINUS
 		op = AST_OP_SUB
@@ -332,6 +332,17 @@ function cOperator _
 
     lexSkipToken( )
 
+    '' ++
+    if( lexGetToken( ) = CHAR_PLUS ) then
+        if op = AST_OP_ADD then
+            '' ++ operator not allowed in expressions
+            if( (options and FB_OPEROPTS_SELF) <> 0 ) then
+                lexSkipToken( )
+                op = AST_OP_INC_SELF
+            end if
+        end if
+    end if    
+    
     if( (options and FB_OPEROPTS_SELF) = 0 ) then
     	return op
     end if

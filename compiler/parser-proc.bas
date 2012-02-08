@@ -870,7 +870,7 @@ private function hCheckOpOvlParams _
 		'' binary?
 		case AST_NODECLASS_BOP
 
-			if( params > 1 ) then
+            if( params > 1 ) then
 				dim as FBSYMBOL ptr nxtparam = param->next
 
 				hCheckParam( proc, nxtparam, 2 )

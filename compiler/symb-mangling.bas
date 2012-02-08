@@ -963,6 +963,9 @@ private function hGetOperatorName _
 
 	case AST_OP_ADD_SELF
 		function = @"pL"
+        
+    case AST_OP_INC_SELF
+        function = @"pp"
 
 	case AST_OP_SUB
 		function = @"mi"

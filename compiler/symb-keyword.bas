@@ -152,6 +152,8 @@ end type
         ( @"VAR"        , FB_TK_VAR         , FB_TKCLASS_KEYWORD , KWD_OPTION_NO_QB ), _
         ( @"IIF"        , FB_TK_IIF         , FB_TKCLASS_KEYWORD , KWD_OPTION_NO_QB ), _
         ( @"VA_FIRST"   , FB_TK_VA_FIRST    , FB_TKCLASS_KEYWORD , KWD_OPTION_NO_QB ), _
+        ( @"FOREACH"    , FB_TK_FOREACH     , FB_TKCLASS_KEYWORD , KWD_OPTION_NO_QB ), _
+        ( @"IN"         , FB_TK_IN          , FB_TKCLASS_KEYWORD , KWD_OPTION_NO_QB ), _
         ( @"DATA"       , FB_TK_DATA        , FB_TKCLASS_QUIRKWD ), _
         ( @"FIELD"      , FB_TK_FIELD       , FB_TKCLASS_QUIRKWD ), _
         ( @"LOCAL"      , FB_TK_LOCAL       , FB_TKCLASS_QUIRKWD ), _
@@ -260,7 +262,7 @@ end type
         ( @"PAINT"      , FB_TK_PAINT       , FB_TKCLASS_QUIRKWD ), _
         ( @"DRAW"       , FB_TK_DRAW        , FB_TKCLASS_QUIRKWD ), _
         ( @"IMAGECREATE", FB_TK_IMAGECREATE	, FB_TKCLASS_QUIRKWD , KWD_OPTION_NO_QB ), _
-        ( @"THREADCALL", FB_TK_THREADCALL   , FB_TKCLASS_QUIRKWD , KWD_OPTION_NO_QB ), _
+        ( @"THREADCALL" , FB_TK_THREADCALL  , FB_TKCLASS_QUIRKWD , KWD_OPTION_NO_QB ), _
         ( NULL ) _
 	}
 

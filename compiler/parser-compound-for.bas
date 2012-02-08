@@ -40,7 +40,30 @@ declare sub hFlushSelfBOP _
 	 	byval lhs as FB_CMPSTMT_FORELM ptr, _
 		byval rhs as FB_CMPSTMT_FORELM ptr _
 	)
+    
+declare function hIterIsForeachCompatible _
+    ( _
+        byval itertype as FBSYMBOL ptr, _
+        byval idexpr as FBSYMBOL ptr, _
+        byval stk as FB_CMPSTMTSTK ptr _
+    ) as integer
 
+declare function hGetForeachMethod _
+    ( _
+        byval udt as FBSYMBOL ptr, _
+        byval id as zstring ptr, _
+        byref itertype as FBSYMBOL ptr _
+    ) as FBSYMBOL ptr
+
+declare function hCheckAndInitializeForeachCall _
+    ( _
+        byval ctnexpr as ASTNODE ptr, _
+        byval idexpr as ASTNODE ptr, _
+        byval stk as FB_CMPSTMTSTK ptr, _
+        byref itertype as FBSYMBOL ptr _
+    ) as integer
+
+    
 ''::::
 private function hElmToExpr _
 	( _
@@ -96,20 +119,68 @@ private sub hUdtStep _
 	)
 
 	dim as ASTNODE ptr proc = any, step_expr = NULL
+    dim as ASTNODE ptr idexpr = any
+    dim as ASTNODE ptr asgnexpr = any
 
-	'' only pass the step arg if it's an explicit step
-	if( stk->for.explicit_step ) then
-		step_expr = hElmToExpr( @stk->for.stp )
-	end if
+    if( stk->for.isforeach = FALSE ) then
+        '' only pass the step arg if it's an explicit step
+        if( stk->for.explicit_step ) then
+            step_expr = hElmToExpr( @stk->for.stp )
+        end if
 
-	proc = hUdtCallOpOvl( symbGetSubtype( stk->for.cnt.sym ), _
-						  AST_OP_STEP, _
-						  hElmToExpr( @stk->for.cnt ), _
-						  step_expr )
+        proc = hUdtCallOpOvl( symbGetSubtype( stk->for.cnt.sym ), _
+                              AST_OP_STEP, _
+                              hElmToExpr( @stk->for.cnt ), _
+                              step_expr )
 
-    if( proc <> NULL ) then
-    	astAdd( proc )
+        if( proc <> NULL ) then
+            astAdd( proc )
+        end if
+    else
+  		dim sym as FBSYMBOL ptr
+        dim iter_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.stp.sym ) 
+        dim id_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.cnt.sym ) 
+
+        dim iter_var as ASTNODE ptr = any
+
+        '' dereference iter and assign to variable
+        iter_var = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, iter_subtype )
+        if( iter_var = NULL ) then
+            errReport( FB_ERRMSG_TYPEMISMATCH )
+            exit sub
+        end if
+        
+        proc = astNewUOP( AST_OP_DEREF, iter_var )
+        if( proc = NULL ) then
+            errReport( FB_ERRMSG_TYPEMISMATCH )
+            exit sub
+        end if
+
+        idexpr = astNewVAR( stk->for.cnt.sym, 0, symbGetType( stk->for.cnt.sym ), id_subtype )
+        if( idexpr = NULL ) then
+            errReport( FB_ERRMSG_TYPEMISMATCH )
+            exit sub
+        end if
+        
+        asgnexpr = astNewASSIGN( idexpr, proc )
+        if( asgnexpr <> NULL ) then
+            astAdd( asgnexpr )
+        else
+            errReport( FB_ERRMSG_TYPEMISMATCH )
+            exit sub
+        end if
+    
+        '' increment iter
+        proc = hUdtCallOpOvl( symbGetSubtype( stk->for.stp.sym ), _
+                              AST_OP_INC_SELF, _
+                              hElmToExpr( @stk->for.stp ), _
+                              NULL )
+        if( proc <> NULL ) then
+            astAdd( proc )
+        end if
+
     end if
+                              
 
 end sub
 
@@ -121,17 +192,27 @@ private sub hUdtNext _
 
 	dim as ASTNODE ptr proc = any, step_expr = NULL
 
-	'' only pass the step arg if it's an explicit step
-	if( stk->for.explicit_step ) then
-		step_expr = hElmToExpr( @stk->for.stp )
-	end if
+    if( stk->for.isforeach = FALSE ) then
+        '' only pass the step arg if it's an explicit step
+        if( stk->for.explicit_step ) then
+            step_expr = hElmToExpr( @stk->for.stp )
+        end if
 
-	proc = hUdtCallOpOvl( symbGetSubtype( stk->for.cnt.sym ), _
-						  AST_OP_NEXT, _
-						  hElmToExpr( @stk->for.cnt ), _
-						  hElmToExpr( @stk->for.end ), _
-						  step_expr )
-
+        proc = hUdtCallOpOvl( symbGetSubtype( stk->for.cnt.sym ), _
+                              AST_OP_NEXT, _
+                              hElmToExpr( @stk->for.cnt ), _
+                              hElmToExpr( @stk->for.end ), _
+                              step_expr )
+    else
+        '' foreach - compare iters
+        dim as FBSYMBOL ptr subtype = symbGetSubType( stk->for.stp.sym )
+        dim as ASTNODE ptr beginvar, endvar
+        beginvar = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, subtype )
+        subtype = symbGetSubType( stk->for.end.sym )
+        endvar = astNewVAR( stk->for.end.sym, 0, FB_DATATYPE_STRUCT, subtype )
+        proc = astNewBop( AST_OP_NE, beginvar, endvar )
+    end if
+                              
     if( proc <> NULL ) then
     	'' if proc(...) <> 0 then goto init
     	astAdd( astNewBOP( AST_OP_NE, _
@@ -727,17 +808,17 @@ end sub
 
 '':::::
 ''ForStmtBegin    =   FOR ID (AS DataType)? '=' Expression TO Expression (STEP Expression)? .
-''
+''               |=   FOREACH ID (AS DataType)? IN ForeachCompatibleType
 function cForStmtBegin _
 	( _
-		_
+		byval keywd as integer _
 	) as integer
 
 	dim as FOR_FLAGS flags = 0
 
 	function = FALSE
 
-	'' FOR
+	'' FOR|FOREACH
 	lexSkipToken( )
 
 	'' ID
@@ -810,7 +891,7 @@ function cForStmtBegin _
 		if( symbGetHasCtor( symbGetSubtype( astGetSymbol( idexpr ) ) ) ) then
 			flags or= FOR_HASCTOR
 		end if
-
+        
 	case else
 		'' not a ptr?
 		if( typeIsPtr( dtype ) = FALSE ) then
@@ -830,57 +911,98 @@ function cForStmtBegin _
 	stk->for.cnt.dtype = dtype
 
 	dim as integer isconst = 0
-
-	'' =
-	hForAssign( stk, isconst, dtype, subtype, flags, idexpr )
-
-    '' TO
-	hForTo( stk, isconst, dtype, subtype, flags )
-
-	'' STEP
-	hForStep( stk, isconst, dtype, subtype, flags )
-
+    
 	'' labels
     dim as FBSYMBOL ptr il = any, tl = any, el = any, cl = any
+    
+    if( keywd = FB_TK_FOR ) then
+        '' =
+        hForAssign( stk, isconst, dtype, subtype, flags, idexpr )
 
-    '' test label: jump to the bottom of the for,
-    '' before any code within the block is executed
-    tl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+        '' TO
+        hForTo( stk, isconst, dtype, subtype, flags )
 
-	'' comp and end label (will be used by any CONTINUE/EXIT FOR)
-	cl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
-	el = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+        '' STEP
+        hForStep( stk, isconst, dtype, subtype, flags )
+        
+        '' test label: jump to the bottom of the for,
+        '' before any code within the block is executed
+        tl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+        
+        '' comp and end label (will be used by any CONTINUE/EXIT FOR)
+        cl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+        el = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+    else
+        stk->for.isforeach = TRUE
+    
+        '' IN
+        if( lexGetToken( ) <> FB_TK_IN ) then
+            errReport( FB_ERRMSG_EXPECTEDIN, TRUE )
+            exit function
+        end if
+        lexSkipToken( )
+        
+        '' Get object
+        dim as ASTNODE ptr ctnexpr = cExpression( )
+        if ( ctnexpr = NULL ) then
+            errReport( FB_ERRMSG_EXPECTEDEXPRESSION )
+            exit function
+        end if
+        
+        '' valid foreach iterator?
+        dim as FBSYMBOL ptr itertype
+        if( hCheckAndInitializeForeachCall( ctnexpr, idexpr, stk, itertype ) = 0 ) then
+            errReport( FB_ERRMSG_TYPEMISMATCH )
+            exit function
+        end if
+        
+        '' comp and end label (will be used by any CONTINUE/EXIT FOR)
+        '' since we're moving the increment to the top of loop, no need for separate tl
+        cl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+        el = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+        tl = cl
+    end if
 
     '' we need to "peek" at the end label,
     '' to allow an overloaded FOR operator to jump to it,
     '' if the operator returns FALSE
 	stk->for.endlabel = el
 
-	'' UDT? must call the FOR operator..
-	if( (flags and FOR_ISUDT) <> 0 ) then
-		hUdtFor( stk )
-	end if
+    if( keywd = FB_TK_FOR ) then
+        '' FOR: UDT? must call the FOR operator..
+        if( (flags and FOR_ISUDT) <> 0 ) then
+            hUdtFor( stk )
+        end if
 
-    '' if inic, endc and stepc are all constants,
-    '' check if this branch is needed
-    if( isconst = 3 ) then
-    	expr = astNewBOP( iif( stk->for.ispos.value.int, AST_OP_LE, AST_OP_GE ), _
-    					  astNewCONST( @stk->for.cnt.value, stk->for.cnt.dtype ), _
-    					  astNewCONST( @stk->for.end.value, stk->for.end.dtype ) )
+        '' if inic, endc and stepc are all constants,
+        '' check if this branch is needed
+        if( isconst = 3 ) then
+            expr = astNewBOP( iif( stk->for.ispos.value.int, AST_OP_LE, AST_OP_GE ), _
+                              astNewCONST( @stk->for.cnt.value, stk->for.cnt.dtype ), _
+                              astNewCONST( @stk->for.end.value, stk->for.end.dtype ) )
 
-    	if( astGetValInt( expr ) = FALSE ) then
-    		astAdd( astNewBRANCH( AST_OP_JMP, el ) )
-    	end if
+            if( astGetValInt( expr ) = FALSE ) then
+                astAdd( astNewBRANCH( AST_OP_JMP, el ) )
+            end if
 
-    	astDelNode( expr )
+            astDelNode( expr )
 
+        else
+            astAdd( astNewBRANCH( AST_OP_JMP, tl ) )
+        end if
     else
-	   	astAdd( astNewBRANCH( AST_OP_JMP, tl ) )
+        '' FOREACH: branch required
+        astAdd( astNewBRANCH( AST_OP_JMP, tl ) )
     end if
-
+    
 	'' add start label
 	il = symbAddLabel( NULL )
 	astAdd( astNewLABEL( il ) )
+    
+    '' FOREACH: Step at start of loop
+    if( keywd = FB_TK_FOREACH ) then
+        hUdtStep( stk )
+    end if
 
 	'' push to stmt stack
 	stk->scopenode = astScopeBegin( )
@@ -953,7 +1075,7 @@ private function hUdtCallOpOvl _
 		else
 			dim as string op_version = *astGetOpId( op ) + " (with"
 			select case as const op
-			case AST_OP_FOR, AST_OP_STEP
+			case AST_OP_FOR, AST_OP_STEP, AST_OP_INC_SELF
 				'' supposed to be 1 arg
 				if( second_arg = NULL ) then
 					op_version += "out"
@@ -1004,29 +1126,34 @@ private sub hForStmtClose(byval stk as FB_CMPSTMTSTK ptr)
 	'' cmp label
 	astAdd( astNewLABEL( stk->for.cmplabel ) )
 
-	'' UDT?
-	select case symbGetType( stk->for.cnt.sym )
-	case FB_DATATYPE_STRUCT ', FB_DATATYPE_CLASS
-		'' update
-		hUdtStep( stk )
-
-		'' emit test label
-		astAdd( astNewLABEL( stk->for.testlabel ) )
-
-        '' check
+    if( stk->for.isforeach = TRUE ) then
+        '' step is at top of loop
         hUdtNext( stk )
+    else
+        '' UDT?
+        select case symbGetType( stk->for.cnt.sym )
+        case FB_DATATYPE_STRUCT ', FB_DATATYPE_CLASS
+            '' update
+            hUdtStep( stk )
 
-	case else
-		'' update
-		hScalarStep( stk )
+            '' emit test label
+            astAdd( astNewLABEL( stk->for.testlabel ) )
 
-		'' emit test label
-		astAdd( astNewLABEL( stk->for.testlabel ) )
+            '' check
+            hUdtNext( stk )
 
-		'' check
-		hScalarNext( stk )
-	end select
+        case else
+            '' update
+            hScalarStep( stk )
 
+            '' emit test label
+            astAdd( astNewLABEL( stk->for.testlabel ) )
+
+            '' check
+            hScalarNext( stk )
+        end select
+    end if
+        
 	'' end label (loop exit)
 	astAdd( astNewLABEL( stk->for.endlabel ) )
 
@@ -1106,3 +1233,206 @@ function cForStmtEnd _
 	function = TRUE
 
 end function
+
+function hCheckAndInitializeForeachCall _
+    ( _
+        byval ctnexpr as ASTNODE ptr, _
+        byval idexpr as ASTNODE ptr, _
+        byval stk as FB_CMPSTMTSTK ptr, _
+        byref itertype as FBSYMBOL ptr _
+    ) as integer
+    
+    dim as FBSYMBOL ptr beginmethod 
+    dim as FBSYMBOL ptr endingmethod
+    
+    '' must be a UDT
+	dim as integer ctndtype = astGetDataType( ctnexpr )
+	dim as FBSYMBOL ptr ctnsubtype = astGetSubType( ctnexpr )
+    if( ctndtype <> FB_DATATYPE_STRUCT ) then
+        errReport( FB_ERRMSG_EXPECTEDUDT )
+        return FALSE
+    end if
+    
+    '' must have a "begin" method returning an iterator object
+    beginmethod = hGetForeachMethod( ctnsubtype, @"BEGIN", itertype )
+    if( beginmethod = NULL ) then
+        errReport( FB_ERRMSG_UDTNOTFOREACHCOMPATIBLE )
+        return FALSE
+    end if
+    
+    '' must have an "ending" method returning the same type of iterator object
+    endingmethod = hGetForeachMethod( ctnsubtype, @"ENDING", itertype )
+    if( endingmethod = NULL )  then
+        errReport( FB_ERRMSG_UDTNOTFOREACHCOMPATIBLE )
+        return FALSE
+    end if 
+    
+    '' iterator must have <>, ++, and * methods defined
+    if( hIterIsForeachCompatible( itertype, stk->for.cnt.sym, stk ) = FALSE ) then
+        errReport( FB_ERRMSG_ITERUDTNOTFOREACHCOMPATIBLE )
+        return FALSE
+    end if
+    
+    dim itervar as ASTNODE ptr
+    dim proccall as ASTNODE ptr
+    dim asgnnode as ASTNODE ptr
+    dim errfound as integer = FALSE
+    
+    '' initialize container object
+    if( astIsVAR( ctnexpr ) = FALSE ) then
+        '' create variable
+        stk->for.container.dtype = FB_DATATYPE_STRUCT
+        stk->for.container.sym = symbAddTempVar( ctndtype, ctnsubtype, FALSE, FALSE )
+
+        '' copy expression to variable
+        dim as ASTNODE ptr varexpr, asgnexpr
+        varexpr = astNewVAR( stk->for.container.sym, 0, ctndtype, ctnsubtype )
+        asgnexpr = astNewASSIGN( varexpr, ctnexpr )
+        if( astAdd( asgnexpr ) = FALSE ) then
+            errfound = FALSE
+        end if
+    else
+        '' already a variable? just record info
+        stk->for.container.dtype = FB_DATATYPE_STRUCT
+        stk->for.container.sym = astGetSymbol( ctnexpr )
+    end if
+    
+    '' dim begin_var as iter_type = container_udt::begin()
+    stk->for.stp.dtype = FB_DATATYPE_STRUCT
+    stk->for.stp.sym = symbAddTempVar( FB_DATATYPE_STRUCT, itertype )
+    if( stk->for.stp.sym = NULL ) then
+        errfound = TRUE
+    end if
+    
+    dim as ASTNODE ptr ctnvar
+    ctnvar = astNewVAR( stk->for.container.sym, 0, ctndtype, ctnsubtype )
+    itervar = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, itertype )
+    proccall = astNewCALL( beginmethod )
+    if( ctnvar = NULL or itervar = NULL or proccall = NULL ) then
+        errfound = TRUE
+    end if
+    
+    astNewARG( proccall, ctnvar )
+    if( astAdd( astNewASSIGN( itervar, proccall ) ) = FALSE ) then
+        errfound = TRUE
+    end if
+    
+    '' dim ending_var as iter_type = container_udt::ending()
+    stk->for.end.dtype = FB_DATATYPE_STRUCT
+    stk->for.end.sym = symbAddTempVar( FB_DATATYPE_STRUCT, itertype )
+    if( stk->for.stp.sym = NULL ) then
+        errfound = TRUE
+    end if
+
+    ctnvar = astNewVAR( stk->for.container.sym, 0, ctndtype, ctnsubtype )
+    itervar = astNewVAR( stk->for.end.sym, 0, FB_DATATYPE_STRUCT, itertype )
+    proccall = astNewCALL( endingmethod )
+    if( ctnvar = NULL or itervar = NULL or proccall = NULL ) then
+        errfound = TRUE
+    end if
+    
+    astNewARG( proccall, ctnvar )
+    asgnnode = astNewASSIGN( itervar, proccall )
+    if( astAdd( astNewASSIGN( itervar, proccall ) ) = FALSE ) then
+        errfound = TRUE
+    end if
+    
+    '' catch-all error for any internal failures
+    if( errfound = TRUE ) then
+        errReport( FB_ERRMSG_INTERNAL )
+        return FALSE
+    else
+        return TRUE
+    end if    
+    
+end function
+
+function hGetForeachMethod _
+    ( _
+        byval udt as FBSYMBOL ptr, _
+        byval id as zstring ptr, _
+        byref itertype as FBSYMBOL ptr _
+    ) as FBSYMBOL ptr
+    
+    '' look up symbol in udt
+    dim as FBSYMCHAIN ptr chain_
+    chain_ = symbLookupAt( udt, id, FALSE, TRUE )
+    if( chain_ = NULL ) then
+        function = NULL
+    end if
+    dim as FBSYMBOL ptr elm = chain_->sym
+
+    '' symbol found, is it a method with no parameters returning a UDT?
+    if( not symbIsMethod( elm ) ) then 
+        return NULL
+    end if
+    
+    '' Allow no more params than the object itself
+    if( symbGetProcParams( elm ) > 1 ) then
+        return NULL
+    end if
+    
+    if( symbGetType( elm ) <> FB_DATATYPE_STRUCT ) then
+        return NULL
+    end if
+    
+    '' return type UDT, if supplied, must match the for-loop variable
+    dim as FBSYMBOL ptr subtype = symbGetSubType( elm )
+    if( itertype = NULL ) then
+        itertype = subtype
+    elseif( symbIsEqual( subtype, itertype ) = FALSE ) then
+        return NULL
+    end if
+   
+    return elm
+   
+end function
+
+function hIterIsForeachCompatible _
+    ( _
+        byval itertype as FBSYMBOL ptr, _
+        byval idvar as FBSYMBOL ptr, _
+        byval stk as FB_CMPSTMTSTK ptr _
+    ) as integer
+    
+    dim as FB_ERRMSG errmsg
+    dim sym as FBSYMBOL ptr
+    
+    dim itervar1 as ASTNODE ptr 
+    dim itervar2 as ASTNODE ptr 
+
+    itervar1 = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, itertype )
+    itervar2 = astNewVAR( stk->for.end.sym, 0, FB_DATATYPE_STRUCT, itertype )
+    
+    '' must have operator <> (itertype, itertype)
+    if( symbFindBopOvlProc( AST_OP_NE, itervar1, itervar2, @errmsg ) = NULL ) then
+        return FALSE
+    end if
+    
+    '' must have operator itertype::++
+    if( symbFindSelfUopOvlProc( AST_OP_INC_SELF, itervar1, @errmsg ) = NULL ) then
+        return FALSE
+    end if
+    
+    '' must have operator itertype::*
+    sym = symbFindUopOvlProc( AST_OP_DEREF, itervar1, @errmsg ) 
+    if( sym = NULL ) then 
+        return FALSE
+    end if
+    
+    astDelTree( itervar1 )
+    astDelTree( itervar2 )
+    
+    '' can what the iterator returns be assigned to the for-loop variable?
+    dim iterreturn as ASTNODE ptr
+    iterreturn = astNewVAR( sym, 0, symbGetType( sym ), symbGetSubtype( sym ) )
+    if( astCheckCONV( _
+        symbGetType( stk->for.cnt.sym ), _
+        symbGetSubtype( stk->for.cnt.sym ), _
+        iterreturn ) ) = FALSE then
+        return FALSE
+    end if
+
+    return TRUE
+    
+end function 

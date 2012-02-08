@@ -84,8 +84,12 @@ function cCompoundStmt as integer
 
 	case FB_TK_FOR
 		CHECK_CODEMASK( FB_TK_FOR, FB_TK_NEXT )
-		function = cForStmtBegin( )
+		function = cForStmtBegin( FB_TK_FOR )
 
+    case FB_TK_FOREACH
+        CHECK_CODEMASK( FB_TK_FOR, FB_TK_NEXT )
+        function = cForStmtBegin( FB_TK_FOREACH )
+        
 	case FB_TK_DO
 		CHECK_CODEMASK( FB_TK_DO, FB_TK_LOOP )
 		cDoStmtBegin()

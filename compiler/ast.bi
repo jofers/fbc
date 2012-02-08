@@ -323,10 +323,10 @@ end Type
 #include once "ir.bi"
 
 enum AST_OPFLAGS
-	AST_OPFLAGS_NONE		= &h00000000
-	AST_OPFLAGS_SELF		= &h00000001			'' op=
-	AST_OPFLAGS_COMM		= &h00000002			'' commutative
-	AST_OPFLAGS_NORES		= &h00000004			'' no result (it's a SUB)
+	AST_OPFLAGS_NONE		     = &h00000000
+	AST_OPFLAGS_SELF		     = &h00000001		'' op=
+	AST_OPFLAGS_COMM		     = &h00000002		'' commutative
+	AST_OPFLAGS_NORES		     = &h00000004		'' no result (it's a SUB)
 end enum
 
 type AST_OPINFO
@@ -354,7 +354,6 @@ enum AST_INIOPT
 	AST_INIOPT_RELINK		= &h00000004
 	AST_INIOPT_DODEREF		= &h00000008
 end enum
-
 
 declare sub astInit _
 	( _
