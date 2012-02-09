@@ -141,33 +141,21 @@ private sub hUdtStep _
         dim iter_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.stp.sym ) 
         dim id_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.cnt.sym ) 
 
-        dim iter_var as ASTNODE ptr = any
+        dim iter_var as ASTNODE ptr = NULL
 
-        '' dereference iter and assign to variable
+        '' count_var = *iter_var
         iter_var = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, iter_subtype )
-        if( iter_var = NULL ) then
-            errReport( FB_ERRMSG_TYPEMISMATCH )
-            exit sub
+        if( iter_var <> NULL ) then
+            proc = astNewUOP( AST_OP_DEREF, iter_var )
         end if
-        
-        proc = astNewUOP( AST_OP_DEREF, iter_var )
-        if( proc = NULL ) then
-            errReport( FB_ERRMSG_TYPEMISMATCH )
-            exit sub
+        if( proc <> NULL ) then
+            idexpr = astNewVAR( stk->for.cnt.sym, 0, symbGetType( stk->for.cnt.sym ), id_subtype )
         end if
-
-        idexpr = astNewVAR( stk->for.cnt.sym, 0, symbGetType( stk->for.cnt.sym ), id_subtype )
-        if( idexpr = NULL ) then
-            errReport( FB_ERRMSG_TYPEMISMATCH )
-            exit sub
+        if( idexpr <> NULL ) then
+            asgnexpr = astNewASSIGN( idexpr, proc )
         end if
-        
-        asgnexpr = astNewASSIGN( idexpr, proc )
         if( asgnexpr <> NULL ) then
             astAdd( asgnexpr )
-        else
-            errReport( FB_ERRMSG_TYPEMISMATCH )
-            exit sub
         end if
     
         '' increment iter
@@ -204,13 +192,19 @@ private sub hUdtNext _
                               hElmToExpr( @stk->for.end ), _
                               step_expr )
     else
-        '' foreach - compare iters
+        '' FOREACH: proc = begin_iter <> end_iter
         dim as FBSYMBOL ptr subtype = symbGetSubType( stk->for.stp.sym )
-        dim as ASTNODE ptr beginvar, endvar
+        dim as ASTNODE ptr beginvar = NULL, endvar = NULL
         beginvar = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, subtype )
-        subtype = symbGetSubType( stk->for.end.sym )
-        endvar = astNewVAR( stk->for.end.sym, 0, FB_DATATYPE_STRUCT, subtype )
-        proc = astNewBop( AST_OP_NE, beginvar, endvar )
+        if( beginvar <> NULL ) then
+            subtype = symbGetSubType( stk->for.end.sym )
+        end if
+        if( subtype <> NULL ) then
+            endvar = astNewVAR( stk->for.end.sym, 0, FB_DATATYPE_STRUCT, subtype )
+        end if
+        if( endvar <> NULL ) then
+            proc = astNewBop( AST_OP_NE, beginvar, endvar )
+        end if
     end if
                               
     if( proc <> NULL ) then
@@ -938,7 +932,6 @@ function cForStmtBegin _
         '' IN
         if( lexGetToken( ) <> FB_TK_IN ) then
             errReport( FB_ERRMSG_EXPECTEDIN, TRUE )
-            exit function
         end if
         lexSkipToken( )
         
@@ -946,14 +939,12 @@ function cForStmtBegin _
         dim as ASTNODE ptr ctnexpr = cExpression( )
         if ( ctnexpr = NULL ) then
             errReport( FB_ERRMSG_EXPECTEDEXPRESSION )
-            exit function
         end if
         
         '' valid foreach iterator?
         dim as FBSYMBOL ptr itertype
         if( hCheckAndInitializeForeachCall( ctnexpr, idexpr, stk, itertype ) = 0 ) then
             errReport( FB_ERRMSG_TYPEMISMATCH )
-            exit function
         end if
         
         '' comp and end label (will be used by any CONTINUE/EXIT FOR)
@@ -1242,36 +1233,50 @@ function hCheckAndInitializeForeachCall _
         byref itertype as FBSYMBOL ptr _
     ) as integer
     
-    dim as FBSYMBOL ptr beginmethod 
-    dim as FBSYMBOL ptr endingmethod
+    dim as FBSYMBOL ptr beginmethod = NULL
+    dim as FBSYMBOL ptr endingmethod = NULL
+    dim as integer result = TRUE
     
     '' must be a UDT
 	dim as integer ctndtype = astGetDataType( ctnexpr )
 	dim as FBSYMBOL ptr ctnsubtype = astGetSubType( ctnexpr )
     if( ctndtype <> FB_DATATYPE_STRUCT ) then
         errReport( FB_ERRMSG_EXPECTEDUDT )
-        return FALSE
+        result = FALSE
     end if
     
     '' must have a "begin" method returning an iterator object
     beginmethod = hGetForeachMethod( ctnsubtype, @"BEGIN", itertype )
     if( beginmethod = NULL ) then
         errReport( FB_ERRMSG_UDTNOTFOREACHCOMPATIBLE )
-        return FALSE
+        result = FALSE
     end if
     
     '' must have an "ending" method returning the same type of iterator object
     endingmethod = hGetForeachMethod( ctnsubtype, @"ENDING", itertype )
     if( endingmethod = NULL )  then
         errReport( FB_ERRMSG_UDTNOTFOREACHCOMPATIBLE )
-        return FALSE
+        result =FALSE
     end if 
     
     '' iterator must have <>, ++, and * methods defined
-    if( hIterIsForeachCompatible( itertype, stk->for.cnt.sym, stk ) = FALSE ) then
-        errReport( FB_ERRMSG_ITERUDTNOTFOREACHCOMPATIBLE )
-        return FALSE
+    if( result = TRUE ) then
+        if( hIterIsForeachCompatible( itertype, stk->for.cnt.sym, stk ) = FALSE ) then
+            errReport( FB_ERRMSG_ITERUDTNOTFOREACHCOMPATIBLE )
+            result = FALSE
+        end if
     end if
+    
+    if( result = FALSE ) then
+        '' error recovery: iterator symbols are the container's type
+        stk->for.container.dtype = FB_DATATYPE_STRUCT
+        stk->for.container.sym = symbAddTempVar( ctndtype, ctnsubtype, FALSE, FALSE )
+        stk->for.stp.dtype = FB_DATATYPE_STRUCT
+        stk->for.stp.sym = symbAddTempVar( ctndtype, ctnsubtype, FALSE, FALSE )
+        stk->for.end.dtype = FB_DATATYPE_STRUCT
+        stk->for.end.sym = symbAddTempVar( ctndtype, ctnsubtype, FALSE, FALSE )
+        return FALSE
+    end if    
     
     dim itervar as ASTNODE ptr
     dim proccall as ASTNODE ptr
