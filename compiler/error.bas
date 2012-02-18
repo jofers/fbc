@@ -250,6 +250,7 @@ end type
 		@"Only static members can be accessed from static functions", _
 		@"The PRIVATE and PUBLIC attributes are not allowed with REDIM, COMMON or EXTERN", _
 		@"The function prototype wasn't declared as STATIC", _
+		@"The function prototype wasn't declared as CONST", _
 		@"This operator cannot be STATIC", _
 		@"Parameter must be an integer", _
 		@"Parameter must be a pointer", _
@@ -275,6 +276,7 @@ end type
 		@"An ENUM, TYPE or UNION cannot be empty", _
 		@"ENUM's declared inside EXTERN .. END EXTERN blocks don't open new scopes", _
 		@"Only member functions can be static", _
+		@"Only member functions can be const", _
 		@"Invalid initializer", _
 		@"Objects with default [con|de]structors or methods are only allowed in the module level", _
 		@"Symbol not a CLASS, ENUM, TYPE or UNION type", _
@@ -288,7 +290,7 @@ end type
 		@"Expected 'PTR' or 'POINTER'", _
 		@"Too many levels of pointer indirection", _
 		@"Dynamic arrays can't be const", _
-		@"Non-const UDT cannot invoke const method", _
+		@"Const UDT cannot invoke non-const method", _
 		@"Elements must be empty for strings and arrays", _
 		@"GOSUB disabled, use 'OPTION GOSUB' to enable", _
 		@"Invalid -lang", _

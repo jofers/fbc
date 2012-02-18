@@ -31,9 +31,11 @@
 #
 
 FBC := fbc
-CC := gcc
-CFLAGS := -O2
-AR := ar
+CFLAGS := -Wfatal-errors -O2
+FBFLAGS := -maxerr 1
+
+AR = $(TARGET_PREFIX)ar
+CC = $(TARGET_PREFIX)gcc
 
 -include config.mk
 
@@ -154,6 +156,9 @@ ifdef TARGET
     ifneq ($(filter djgpp%,$(triplet_os)),)
       TARGET_OS := dos
     endif
+    ifneq ($(filter msdos%,$(triplet_os)),)
+      TARGET_OS := dos
+    endif
     ifneq ($(filter freebsd%,$(triplet_os)),)
       TARGET_OS := freebsd
     endif
@@ -268,21 +273,21 @@ ifneq ($(filter cygwin dos win32,$(TARGET_OS)),)
 endif
 FBC_EXE := fbc$(SUFFIX)$(SUFFIX2)$(EXEEXT)
 
-newcompiler := $(new)/compiler
-newlibfb    := $(new)/libfb
-newlibfbmt  := $(new)/libfbmt
-newlibfbgfx := $(new)/libfbgfx
+override newcompiler := $(new)/compiler
+override newlibfb    := $(new)/libfb
+override newlibfbmt  := $(new)/libfbmt
+override newlibfbgfx := $(new)/libfbgfx
 
 ifeq ($(TARGET_OS),dos)
   # For DOS the ldscript is always needed, to fix the c/dtors otder
-  FB_LDSCRIPT := i386go32.x
+  override FB_LDSCRIPT := i386go32.x
   # Don't build libfbmt for DOS, and also no OpenGL support in libfbgfx
   DISABLE_MT := YesPlease
   DISABLE_OPENGL := YesPlease
 else
   ifndef DISABLE_OBJINFO
     # The extra ldscript snippet for dropping .fbctinf
-    FB_LDSCRIPT := fbextra.x
+    override FB_LDSCRIPT := fbextra.x
   endif
 endif
 
@@ -300,46 +305,39 @@ else
   INSTALL_FILE := install -m 644
 endif
 
-ifndef TARGET_AR
-  TARGET_AR := $(TARGET_PREFIX)$(AR)
-endif
-ifndef TARGET_CC
-  TARGET_CC := $(TARGET_PREFIX)$(CC)
-endif
-
-FBCFLAGS := -maxerr 1 -w pedantic -e -m fbc $(FBFLAGS)
-FBLFLAGS := -maxerr 1 -w pedantic $(FBFLAGS)
-ALLCFLAGS := -Wfatal-errors $(CFLAGS) -Wall
+ALLFBCFLAGS := -e -m fbc -w pedantic
+ALLFBLFLAGS := -e -m fbc -w pedantic
+ALLCFLAGS := -Wall
 
 # If cross-compiling, use -target
-ifneq ($(TARGET),)
-  FBCFLAGS += -target $(TARGET)
-  FBLFLAGS += -target $(TARGET)
+ifdef TARGET
+  ALLFBCFLAGS += -target $(TARGET)
+  ALLFBLFLAGS += -target $(TARGET)
 endif
 
 ifneq ($(filter cygwin win32,$(TARGET_OS)),)
   # Increase compiler's available stack size, it uses lots of recursion
-  FBLFLAGS += -t 2048
+  ALLFBLFLAGS += -t 2048
 endif
 
 # Pass the configuration defines on to the compiler source code
 ifdef ENABLE_FBBFD
-  FBCFLAGS += -d ENABLE_FBBFD=$(ENABLE_FBBFD)
+  ALLFBCFLAGS += -d ENABLE_FBBFD=$(ENABLE_FBBFD)
 endif
 ifdef DISABLE_OBJINFO
-  FBCFLAGS += -d DISABLE_OBJINFO
+  ALLFBCFLAGS += -d DISABLE_OBJINFO
 endif
 ifdef ENABLE_PREFIX
-  FBCFLAGS += -d 'ENABLE_PREFIX="$(prefix)"'
+  ALLFBCFLAGS += -d 'ENABLE_PREFIX="$(prefix)"'
 endif
 ifdef ENABLE_STANDALONE
-  FBCFLAGS += -d ENABLE_STANDALONE
+  ALLFBCFLAGS += -d ENABLE_STANDALONE
 endif
 ifdef SUFFIX
-  FBCFLAGS += -d 'ENABLE_SUFFIX="$(SUFFIX)"'
+  ALLFBCFLAGS += -d 'ENABLE_SUFFIX="$(SUFFIX)"'
 endif
 ifdef ENABLE_TDMGCC
-  FBCFLAGS += -d ENABLE_TDMGCC
+  ALLFBCFLAGS += -d ENABLE_TDMGCC
 endif
 
 # Same for rtlib/gfxlib2
@@ -348,6 +346,23 @@ ifdef DISABLE_OPENGL
 endif
 ifdef DISABLE_X
   ALLCFLAGS += -DDISABLE_X
+endif
+
+ifdef FBCFLAGS
+  ALLFBCFLAGS += $(FBCFLAGS)
+endif
+
+ifdef FBLFLAGS
+  ALLFBLFLAGS += $(FBLFLAGS)
+endif
+
+ifdef FBFLAGS
+  ALLFBCFLAGS += $(FBFLAGS)
+  ALLFBLFLAGS += $(FBFLAGS)
+endif
+
+ifdef CFLAGS
+  ALLCFLAGS += $(CFLAGS)
 endif
 
 #
@@ -422,21 +437,21 @@ ifndef DISABLE_OBJINFO
     FBC_BFDWRAPPER := $(newcompiler)/bfd-wrapper.o
   endif
 
-  FBLFLAGS += -l bfd -l iberty
+  ALLFBLFLAGS += -l bfd -l iberty
   ifeq ($(TARGET_OS),cygwin)
-    FBLFLAGS += -l intl
+    ALLFBLFLAGS += -l intl
   endif
   ifeq ($(TARGET_OS),dos)
-    FBLFLAGS += -l intl -l z
+    ALLFBLFLAGS += -l intl -l z
   endif
   ifeq ($(TARGET_OS),freebsd)
-    FBLFLAGS += -l intl
+    ALLFBLFLAGS += -l intl
   endif
   ifeq ($(TARGET_OS),openbsd)
-    FBLFLAGS += -l intl
+    ALLFBLFLAGS += -l intl
   endif
   ifeq ($(TARGET_OS),win32)
-    FBLFLAGS += -l intl -l user32
+    ALLFBLFLAGS += -l intl -l user32
   endif
 endif
 
@@ -457,6 +472,7 @@ endif
   headers += include/allegro/platform/
   headers += include/aspell.bi
 ifneq ($(TARGET_OS),dos)
+  headers += include/atk/
   headers += include/bass.bi
   headers += include/bassmod.bi
 endif
@@ -486,6 +502,7 @@ endif
 ifneq ($(filter darwin freebsd linux netbsd openbsd solaris,$(TARGET_OS)),)
   headers += include/crt/linux/
 endif
+  headers += include/crt/locale.bi
   headers += include/crt/malloc.bi
   headers += include/crt/math.bi
 ifneq ($(filter darwin freebsd linux netbsd openbsd solaris,$(TARGET_OS)),)
@@ -563,28 +580,28 @@ ifneq ($(TARGET_OS),dos)
   headers += include/gd/
 endif
   headers += include/gdbm.bi
+ifneq ($(TARGET_OS),dos)
+  headers += include/gdk-pixbuf/
+  headers += include/gdk/
+endif
   headers += include/gdsl/
   headers += include/gettext-po.bi
   headers += include/gif_lib.bi
 ifneq ($(TARGET_OS),dos)
+  headers += include/gio/
   headers += include/GL/
+  headers += include/glade/
+  headers += include/glib-object.bi
+  headers += include/glib.bi
+  headers += include/gmodule.bi
   headers += include/gmp.bi
+  headers += include/goocanvas.bi
 endif
   headers += include/grx/
 ifneq ($(TARGET_OS),dos)
   headers += include/gsl/
   headers += include/gtk/
-  headers += include/gtk/atk/
-  headers += include/gtk/gdk-pixbuf/
-  headers += include/gtk/gdk/
-  headers += include/gtk/gdkgl/
-  headers += include/gtk/glib/
-  headers += include/gtk/gobject/
-  headers += include/gtk/gtk/
-  headers += include/gtk/gtkgl/
-  headers += include/gtk/libart/
-  headers += include/gtk/libglade/
-  headers += include/gtk/pango/
+  headers += include/gtkgl/
   headers += include/IL/
   headers += include/IUP/
   headers += include/japi.bi
@@ -596,6 +613,7 @@ endif
   headers += include/jpgalleg.bi
   headers += include/libintl.bi
 ifneq ($(TARGET_OS),dos)
+  headers += include/libart_lgpl/
   headers += include/libxml/
   headers += include/libxslt/
   headers += include/Lua/
@@ -610,6 +628,7 @@ ifneq ($(TARGET_OS),dos)
   headers += include/Newton.bi
   headers += include/ode/
   headers += include/ogg/ogg.bi
+  headers += include/pango/
 endif
   headers += include/pcre/
 ifneq ($(TARGET_OS),dos)
@@ -631,6 +650,7 @@ ifneq ($(TARGET_OS),dos)
 endif
   headers += include/sqlite2.bi
   headers += include/sqlite3.bi
+  headers += include/sqlite3ext.bi
   headers += include/string.bi
   headers += include/tinyptc.bi
   headers += include/utf_conv.bi
@@ -677,11 +697,10 @@ HEADER_DIRS := $(patsubst %/,%,$(sort $(dir $(HEADER_FILES))))
 # rtlib sources
 #
 
-LIBFB_H := rtlib/fb.h
+LIBFB_H += rtlib/con_print_raw_uni.h
+LIBFB_H += rtlib/con_print_tty_uni.h
+LIBFB_H += rtlib/fb.h
 LIBFB_H += rtlib/fb_array.h
-LIBFB_H += rtlib/fb_colors.h
-LIBFB_H += rtlib/fb_config.h
-LIBFB_H += rtlib/fb_con.h
 LIBFB_H += rtlib/fb_console.h
 LIBFB_H += rtlib/fb_data.h
 LIBFB_H += rtlib/fb_datetime.h
@@ -689,18 +708,18 @@ LIBFB_H += rtlib/fb_device.h
 LIBFB_H += rtlib/fb_error.h
 LIBFB_H += rtlib/fb_file.h
 LIBFB_H += rtlib/fb_hook.h
-LIBFB_H += rtlib/fb_intern.h
 LIBFB_H += rtlib/fb_math.h
-LIBFB_H += rtlib/fb_port.h
+LIBFB_H += rtlib/fb_print.h
 LIBFB_H += rtlib/fb_printer.h
-LIBFB_H += rtlib/fb_scancodes.h
+LIBFB_H := rtlib/fb_private_console.h
+LIBFB_H += rtlib/fb_private_hdynload.h
+LIBFB_H += rtlib/fb_private_intl.h
+LIBFB_H += rtlib/fb_private_thread.h
 LIBFB_H += rtlib/fb_serial.h
 LIBFB_H += rtlib/fb_string.h
 LIBFB_H += rtlib/fb_system.h
 LIBFB_H += rtlib/fb_thread.h
 LIBFB_H += rtlib/fb_unicode.h
-LIBFB_H += rtlib/con_print_raw_uni.h
-LIBFB_H += rtlib/con_print_tty_uni.h
 
 LIBFB_C := \
   array_boundchk array_clear array_clear_obj array_core array_erase \
@@ -721,13 +740,20 @@ LIBFB_C := \
   dev_file_readline dev_file_readline_wstr dev_file_read_wstr dev_file_seek \
   dev_file_size dev_file_tell dev_file_unlock dev_file_write \
   dev_file_write_wstr dev_lpt dev_lpt_close dev_lpt_test dev_lpt_write \
-  dev_lpt_write_wstr dev_scrn dev_scrn_close dev_scrn_eof dev_scrn_init \
+  dev_lpt_write_wstr dev_pipe_close dev_pipe_open dev_scrn dev_scrn_close dev_scrn_eof dev_scrn_init \
   dev_scrn_read dev_scrn_readline dev_scrn_readline_wstr dev_scrn_read_wstr \
   dev_scrn_write dev_scrn_write_wstr dev_stdio_close \
+  drv_file_copy \
+  drv_intl_get \
+  drv_intl_getdateformat \
+  drv_intl_getmonthname \
+  drv_intl_gettimeformat \
+  drv_intl_getweekdayname \
   error error_getset error_ptrchk \
-  exit \
   file_attr file_close file_copy file_datetime file_encod file_eof \
   file_exists file_free file_getarray file_get file_getstr file_get_wstr \
+  file_hconvpath \
+  file_hlock \
   file_input_byte file_input_con file_input_file file_input_float \
   file_input_int file_input_longint file_input_short file_input_str \
   file_inputstr file_input_tok file_input_tok_wstr file_input_ubyte \
@@ -736,7 +762,7 @@ LIBFB_C := \
   file_open file_opencom file_opencons file_openencod file_openerr \
   file_openlpt file_openpipe file_openscrn file_openshort file_print \
   file_print_wstr file_putarray file_putback file_putback_wstr file_put \
-  file_putstr file_put_wstr file_reset file_seek file_size file_tell \
+  file_putstr file_put_wstr file_reset file_resetex file_seek file_size file_tell \
   file_winputstr \
   gosub \
   hook_cls hook_color hook_getsize hook_getx hook_getxy hook_gety hook_inkey \
@@ -747,12 +773,13 @@ LIBFB_C := \
   init \
   intl_get intl_getdateformat intl_getmonthname intl_getset intl_gettimeformat \
   intl_getweekdayname \
+  io_isredir \
   io_lpos io_lprint_byte io_lprint_fix io_lprint_fp io_lprint_int \
   io_lprint_longint io_lprint_short io_lprint_str io_lprintusg io_lprintvoid \
-  io_lprint_wstr io_print_byte io_print io_print_fix io_print_fp io_print_int \
+  io_lprint_wstr io_maxrow io_print_byte io_print io_print_fix io_print_fp io_print_int \
   io_print_longint io_printpad io_printpad_wstr io_print_short io_printusg \
-  io_printvoid io_printvoid_wstr io_print_wstr io_setpos io_spc io_view \
-  io_viewhlp io_widthdev io_widthfile io_writebyte io_writefloat io_writeint \
+  io_printvoid io_printvoid_wstr io_print_wstr io_readstr io_setpos io_spc io_view \
+  io_viewhlp io_viewupdate io_widthdev io_widthfile io_writebyte io_writefloat io_writeint \
   io_writelongint io_writeshort io_writestr io_writevoid io_write_wstr \
   list listdyn \
   math_fix math_frac math_rnd math_sgn \
@@ -782,13 +809,15 @@ LIBFB_C := \
   strw_rtrimany strw_rtrim strw_rtrimex strw_set strw_space strw_trimany \
   strw_trim strw_trimex strw_ucase \
   swap_mem swap_str swap_wstr \
-  sys_beep sys_cdir sys_chain sys_chdir sys_cmd sys_environ sys_exec_core \
-  sys_exepath sys_mkdir sys_rmdir sys_run \
-  thread_call thread_ctx \
+  sys_beep sys_cdir sys_chain sys_chdir sys_cmd sys_delay sys_environ sys_exec_core \
+  sys_exepath sys_fmem sys_getcwd sys_getexename sys_getexepath sys_getshortpath \
+  sys_mkdir sys_rmdir sys_run sys_shell \
+  thread_call thread_ctx thread_mutex \
   time_core time_dateadd time_date time_datediff time_datepart time_dateserial \
   time_dateset time_datevalue time_decodeserdate time_decodesertime \
   time_isdate time_monthname time_now time_parsedate time_parsedatetime \
-  time_parsetime time_sleepex time_time time_timeserial time_timeset \
+  time_parsetime time_setdate time_settime time_sleep time_sleepex \
+  time_time time_timer time_timeserial time_timeset \
   time_timevalue time_week time_weekdayname \
   utf_convfrom_char utf_convfrom_wchar utf_convto_char utf_convto_wchar \
   utf_core \
@@ -802,32 +831,25 @@ endif
 
 ifeq ($(TARGET_OS),darwin)
   ALLCFLAGS += -DHOST_DARWIN
+  LIBFB_C += io_mouse_stub
 endif
 
 ifeq ($(TARGET_OS),dos)
   ALLCFLAGS += -DHOST_DOS
 
   LIBFB_H += rtlib/fb_dos.h
-  LIBFB_H += rtlib/fb_unicode_dos.h
   LIBFB_C += \
-    dev_pipe_close_dos dev_pipe_open_dos \
-    drv_file_copy_dos drv_intl_dos drv_intl_data_dos drv_intl_get_dos \
-    drv_intl_getdateformat_dos drv_intl_getmonthname_dos \
-    drv_intl_gettimeformat_dos drv_intl_getweekdayname_dos \
+    drv_intl_dos drv_intl_data_dos \
     farmemset_dos \
-    file_dir_dos file_hconvpath_dos file_hlock_dos file_resetex_dos \
-    hexit_dos \
-    hinit_dos \
-    hsignals_dos \
-    io_cls_dos io_color_dos io_getsize_dos io_inkey_dos io_isredir_dos \
-    io_locate_dos io_maxrow_dos io_mouse_dos io_multikey_dos io_pageset_dos \
+    file_dir_dos \
+    init_dos \
+    io_cls_dos io_color_dos io_getsize_dos io_inkey_dos io_input_dos \
+    io_locate_dos io_mouse_dos io_multikey_dos io_pageset_dos \
     io_pcopy_dos io_printbuff_dos io_printbuff_wstr_dos io_printer_dos \
-    io_readstr_dos io_scroll_dos io_serial_dos io_viewupdate_dos io_width_dos \
-    sys_exec_dos sys_fmem_dos sys_getcwd_dos sys_getexename_dos \
-    sys_getexepath_dos sys_getshortpath_dos sys_isr_dos sys_ports_dos \
-    sys_shell_dos sys_sleep_dos \
-    thread_cond_dos thread_core_dos thread_mutex_dos \
-    time_setdate_dos time_settime_dos time_sleep_dos time_tmr_dos
+    io_scroll_dos io_serial_dos io_width_dos \
+    sys_exec_dos \
+    sys_isr_dos sys_ports_dos \
+    thread_cond_stub thread_core_stub
   LIBFB_S += drv_isr
 endif
 
@@ -835,45 +857,38 @@ ifeq ($(TARGET_OS),freebsd)
   ALLCFLAGS += -DHOST_FREEBSD
 
   LIBFB_C += \
-    io_mouse_freebsd io_multikey_freebsd \
-    sys_fmem_freebsd sys_getexename_freebsd sys_getexepath_freebsd
+    io_mouse_stub io_multikey_stub
 endif
 
 ifeq ($(TARGET_OS),linux)
   ALLCFLAGS += -DHOST_LINUX
 
-  LIBFB_H += rtlib/fb_linux.h
   LIBFB_C += \
     io_mouse_linux io_multikey_linux io_serial_linux \
-    sys_fmem_linux sys_getexename_linux sys_getexepath_linux sys_ports_linux
+    sys_ports_linux
 endif
 
 ifeq ($(TARGET_OS),netbsd)
   ALLCFLAGS += -DHOST_NETBSD
 
   LIBFB_C += \
-    io_mouse_netbsd io_multikey_netbsd \
-    sys_fmem_netbsd sys_getexename_netbsd sys_getexepath_netbsd
+    io_mouse_stub io_multikey_stub
 endif
 
 ifeq ($(TARGET_OS),openbsd)
   ALLCFLAGS += -DHOST_OPENBSD
 
   LIBFB_C += \
-    io_mouse_openbsd io_multikey_openbsd \
-    sys_fmem_openbsd sys_getexename_openbsd sys_getexepath_openbsd \
+    io_mouse_stub io_multikey_stub \
     swprintf_hack_openbsd
 endif
 
 ifeq ($(TARGET_OS),win32)
   ALLCFLAGS += -DHOST_MINGW
-  # This #define causes some MinGW functions (including those from libmoldname)
-  # to be unavailable, effectively forcing the runtime to be coded using just
-  # msvcrt (or mostly anyways).
-  # For example, the native msvcrt provides _mkdir(), while mkdir() is an
-  # "oldname" wrapper around _mkdir() implemented by MinGW to provide some of
-  # the more Unixy functions.
-  ALLCFLAGS += -D_NO_OLDNAMES
+  # We prefer using non-oldnames functions, see also rtlib/fb_win32.h
+  ALLCFLAGS += -DNO_OLDNAMES -D_NO_OLDNAMES
+  # Include some less Windows headers
+  ALLCFLAGS += -DWIN32_LEAN_AND_MEAN
 endif
 
 ifeq ($(TARGET_OS),solaris)
@@ -893,104 +908,91 @@ ifeq ($(TARGET_OS),xbox)
 
   LIBFB_H += rtlib/fb_xbox.h
   LIBFB_C += \
-    dev_pipe_close_xbox dev_pipe_open_xbox \
-    drv_file_copy_xbox drv_intl_get_xbox drv_intl_getdateformat_xbox \
-    drv_intl_getmonthname_xbox drv_intl_gettimeformat_xbox \
-    drv_intl_getweekdayname_xbox \
-    file_dir_xbox file_hconvpath_xbox file_hlock_xbox \
-    hexit_xbox \
-    hinit_xbox \
-    io_cls_xbox io_color_xbox io_getsize_xbox io_inkey_xbox io_isredir_xbox \
-    io_locate_xbox io_maxrow_xbox io_mouse_xbox io_multikey_xbox \
-    io_pageset_xbox io_pcopy_xbox io_printbuff_xbox io_printbuff_wstr_xbox \
-    io_printer_xbox io_readstr_xbox io_scroll_xbox io_serial_xbox \
-    io_viewupdate_xbox io_width_xbox \
-    sys_dylib_xbox sys_exec_xbox sys_fmem_xbox sys_getcwd_xbox \
-    sys_getexename_xbox sys_getexepath_xbox sys_getshortpath_xbox \
-    sys_shell_xbox sys_sleep_xbox \
-    thread_cond_xbox thread_core_xbox thread_mutex_xbox \
-    time_setdate_xbox time_settime_xbox time_sleep_xbox time_tmr_xbox
+    file_dir_xbox \
+    init_xbox \
+    io_cls_stub io_color_stub io_getsize_stub io_inkey_stub \
+    io_locate_stub io_mouse_stub io_multikey_stub \
+    io_pageset_stub io_pcopy_stub io_printbuff_stub io_printbuff_wstr_stub \
+    io_printer_stub io_scroll_stub io_serial_stub \
+    io_width_stub \
+    sys_dylib_stub sys_exec_xbox \
+    thread_cond_stub thread_core_xbox
   LIBFB_S += alloca
 endif
 
 ifneq ($(filter darwin freebsd linux netbsd openbsd solaris,$(TARGET_OS)),)
   ALLCFLAGS += -DHOST_UNIX
 
-  # This causes fopen/fseeko/... to be mapped to fopen64/fseeko64/
+  # This causes off_t/fopen/fseeko/... to be mapped to their 64bit versions
   ALLCFLAGS += -D_FILE_OFFSET_BITS=64
 
   LIBFB_H += rtlib/fb_unix.h
   LIBFB_C += \
-    dev_pipe_close_unix dev_pipe_open_unix \
-    drv_file_copy_unix drv_intl_get_unix drv_intl_getdateformat_unix \
-    drv_intl_getmonthname_unix drv_intl_gettimeformat_unix \
-    drv_intl_getweekdayname_unix \
-    file_dir_unix file_hconvpath_unix file_hlock_unix file_resetex_unix \
-    hdynload_unix \
-    hexit_unix \
-    hinit_unix \
-    hsignals_unix \
-    io_cls_unix io_color_unix io_getsize_unix io_inkey_unix io_isredir_unix \
-    io_locate_unix io_maxrow_unix io_pageset_unix io_pcopy_unix \
-    io_printbuff_unix io_printbuff_wstr_unix io_printer_unix io_readstr_unix \
-    io_scroll_unix io_viewupdate_unix io_width_unix io_xfocus_unix \
-    scancodes_unix \
-    sys_delay_unix sys_dylib_unix sys_exec_unix sys_getcwd_unix \
-    sys_getshortpath_unix sys_shell_unix \
-    thread_cond_unix thread_core_unix thread_mutex_unix \
-    time_setdate_unix time_settime_unix time_sleep_unix time_tmr_unix
+    file_dir_unix \
+    init_unix \
+    hdynload \
+    io_cls_unix io_color_unix io_getsize_unix io_inkey_unix io_input_unix \
+    io_locate_unix io_pageset_stub io_pcopy_stub \
+    io_printbuff_unix io_printbuff_wstr_unix io_printer_unix \
+    io_scroll_unix io_width_unix io_xfocus_unix \
+    sys_dylib_unix sys_exec_unix \
+    thread_cond_unix thread_core_unix
+
+  ifndef DISABLE_X
+    LIBFB_H += rtlib/fb_private_scancodes_x11.h
+    LIBFB_C += scancodes_x11
+  endif
 endif
 
 ifneq ($(filter cygwin win32,$(TARGET_OS)),)
   ALLCFLAGS += -DHOST_WIN32
-  LIBFB_H += rtlib/fb_unicode_win32.h
   LIBFB_H += rtlib/fb_win32.h
   LIBFB_H += rtlib/fbportio/fbportio.h
   LIBFB_H += rtlib/fbportio/inline.h
   LIBFB_C += \
-    dev_pipe_close_win32 dev_pipe_open_win32 \
-    drv_file_copy_win32 drv_intl_get_win32 drv_intl_getdateformat_win32 \
-    drv_intl_getmonthname_win32 drv_intl_gettimeformat_win32 \
-    drv_intl_getweekdayname_win32 \
-    file_dir_win32 file_hconvpath_win32 file_hlock_win32 file_resetex_win32 \
-    hdynload_win32 \
-    hexit_win32 \
-    hinit_win32 \
-    hsignals_win32 \
+    file_dir_win32 \
+    init_win32 \
+    hdynload \
     intl_conv_win32 intl_win32 \
     io_cls_win32 io_clsex_win32 io_color_win32 io_colorget_win32 \
     io_gethnd_win32 io_getsize_win32 io_getwindow_win32 io_getwindowex_win32 \
     io_getx_win32 io_getxy_win32 io_gety_win32 io_inkey_win32 io_input_win32 \
-    io_isredir_win32 io_locate_win32 io_locateex_win32 io_maxrow_win32 \
+    io_locate_win32 io_locateex_win32 \
     io_mouse_win32 io_multikey_win32 io_pageset_win32 io_pcopy_win32 \
     io_printbuff_win32 io_printbuff_wstr_win32 io_printer_win32 \
-    io_readstr_win32 io_readxy_win32 io_screensize_win32 io_scroll_win32 \
-    io_scrollex_win32 io_serial_win32 io_viewupdate_win32 io_width_win32 \
+    io_readxy_win32 io_screensize_win32 io_scroll_win32 \
+    io_scrollex_win32 io_serial_win32 io_width_win32 \
     io_window_win32 \
-    sys_dylib_win32 sys_exec_win32 sys_fmem_win32 sys_getcwd_win32 \
-    sys_getexename_win32 sys_getexepath_win32 sys_getshortpath_win32 \
-    sys_ports_win32 sys_shell_win32 sys_sleep_win32 \
-    thread_cond_win32 thread_core_win32 thread_mutex_win32 \
-    time_setdate_win32 time_settime_win32 time_sleep_win32 time_tmr_win32
+    sys_dylib_win32 sys_exec_win32 \
+    sys_ports_win32 \
+    thread_cond_win32 thread_core_win32
   LIBFB_S += alloca
 endif
 
 ifneq ($(filter 386 486 586 686,$(TARGET_ARCH)),)
   ALLCFLAGS += -DHOST_X86
-  LIBFB_H += rtlib/fb_x86.h
+  LIBFB_H += rtlib/fb_arch_x86.h
   LIBFB_S += cpudetect_x86
 endif
 ifeq ($(TARGET_ARCH),x86_64)
   ALLCFLAGS += -DHOST_X86_64
+  LIBFB_H += rtlib/fb_arch_any.h
+  LIBFB_C += cpudetect_any
 endif
 ifeq ($(TARGET_ARCH),sparc)
   ALLCFLAGS += -DHOST_SPARC
+  LIBFB_H += rtlib/fb_arch_any.h
+  LIBFB_C += cpudetect_any
 endif
 ifeq ($(TARGET_ARCH),sparc64)
   ALLCFLAGS += -DHOST_SPARC64
+  LIBFB_H += rtlib/fb_arch_any.h
+  LIBFB_C += cpudetect_any
 endif
 ifeq ($(TARGET_ARCH),powerpc64)
   ALLCFLAGS += -DHOST_POWERPC64
+  LIBFB_H += rtlib/fb_arch_any.h
+  LIBFB_C += cpudetect_any
 endif
 
 LIBFB_C := $(patsubst %,$(newlibfb)/%.o,$(LIBFB_C))
@@ -1007,7 +1009,6 @@ endif
 
 ifndef DISABLE_GFX
   LIBFBGFX_H := $(LIBFB_H)
-  LIBFBGFX_H += gfxlib2/fb_gfx_data.h
   LIBFBGFX_H += gfxlib2/fb_gfx_gl.h
   LIBFBGFX_H += gfxlib2/fb_gfx.h
   LIBFBGFX_H += gfxlib2/fb_gfx_lzw.h
@@ -1112,98 +1113,94 @@ $(sort $(new) $(newcompiler) $(newlibfb) $(newlibfbmt) $(newlibfbgfx) \
        $(prefix)/include $(prefixinclude) $(prefix)/lib $(prefixlib) ):
 	mkdir $@
 
-.PHONY: includes
-includes:
-	mkdir -p $(new)/$(INCDIR)
-	for file in $(INCLUDES); do \
-		mkdir -p $(new)/`dirname $$file | sed 's|include|$(INCDIR)|'`; \
-		cp -u $$file $(new)/`dirname $$file | sed 's|include|$(INCDIR)|'`;  \
-	done
-
-clean-includes:
-	rm -r $(new)/$(INCDIR)
-
 .PHONY: compiler
-compiler: $(new) $(newcompiler) $(newbin) $(new)/lib $(newlib)
-compiler: $(newbin)/$(FBC_EXE)
-ifdef FB_LDSCRIPT
-compiler: $(newlib)/$(FB_LDSCRIPT)
-endif
-
-$(newlib)/fbextra.x: compiler/fbextra.x
-	$(QUIET_CP)cp $< $@
-
-$(newlib)/i386go32.x: contrib/djgpp/i386go32.x
-	$(QUIET_CP)cp $< $@
+compiler: $(new) $(newcompiler) $(newbin) $(newbin)/$(FBC_EXE)
 
 $(newbin)/$(FBC_EXE): $(FBC_BAS) $(FBC_BFDWRAPPER)
-	$(QUIET_LINK)$(FBC) $(FBLFLAGS) -x $@ $^
+	$(QUIET_LINK)$(FBC) $(ALLFBLFLAGS) -x $@ $^
 
 $(FBC_BAS): $(newcompiler)/%.o: compiler/%.bas $(FBC_BI)
-	$(QUIET_FBC)$(FBC) $(FBCFLAGS) -c $< -o $@
+	$(QUIET_FBC)$(FBC) $(ALLFBCFLAGS) -c $< -o $@
 
 $(FBC_BFDWRAPPER): $(newcompiler)/%.o: compiler/%.c
-	$(QUIET_CC)$(TARGET_CC) -Wfatal-errors -Wall -c $< -o $@
+	$(QUIET_CC)$(CC) $(ALLCFLAGS) -c $< -o $@
 
 .PHONY: headers
-headers: $(new)/include $(newinclude)
+ifndef ENABLE_STANDALONE
+headers: $(new)/include
+endif
+headers: $(newinclude)
 headers: $(HEADER_DIRS) $(HEADER_FILES)
 $(HEADER_FILES): $(newinclude)/%.bi: include/%.bi
 	$(QUIET_CP) cp $< $@
 
 .PHONY: rtlib
-rtlib: $(new) $(newlibfb) $(new)/lib $(newlib)
+rtlib: $(new) $(newlibfb)
+ifndef ENABLE_STANDALONE
+rtlib: $(new)/lib
+endif
+rtlib: $(newlib)
+ifdef FB_LDSCRIPT
+rtlib: $(newlib)/$(FB_LDSCRIPT)
+endif
 rtlib: $(newlib)/fbrt0.o
 rtlib: $(newlib)/libfb.a
 ifndef DISABLE_MT
 rtlib: $(newlibfbmt) $(newlib)/libfbmt.a
 endif
 
+$(newlib)/fbextra.x: rtlib/fbextra.x
+	$(QUIET_CP)cp $< $@
+
+$(newlib)/i386go32.x: contrib/djgpp/i386go32.x
+	$(QUIET_CP)cp $< $@
+
 $(newlib)/fbrt0.o: rtlib/fbrt0.c $(LIBFB_H)
-	$(QUIET_CC)$(TARGET_CC) $(ALLCFLAGS) -c $< -o $@
+	$(QUIET_CC)$(CC) $(ALLCFLAGS) -c $< -o $@
 
 $(newlib)/libfb.a: $(LIBFB_C) $(LIBFB_S)
-	$(QUIET_AR)$(TARGET_AR) rcs $@ $^
+	$(QUIET_AR)$(AR) rcs $@ $^
 
 $(LIBFB_C): $(newlibfb)/%.o: rtlib/%.c $(LIBFB_H)
-	$(QUIET_CC)$(TARGET_CC) $(ALLCFLAGS) -c $< -o $@
+	$(QUIET_CC)$(CC) $(ALLCFLAGS) -c $< -o $@
 
 $(LIBFB_S): $(newlibfb)/%.o: rtlib/%.s $(LIBFB_H)
-	$(QUIET_CPPAS)$(TARGET_CC) -x assembler-with-cpp $(ALLCFLAGS) -c $< -o $@
+	$(QUIET_CPPAS)$(CC) -x assembler-with-cpp $(ALLCFLAGS) -c $< -o $@
 
 $(newlib)/libfbmt.a: $(LIBFBMT_C) $(LIBFBMT_S)
-	$(QUIET_AR)$(TARGET_AR) rcs $@ $^
+	$(QUIET_AR)$(AR) rcs $@ $^
 
 $(LIBFBMT_C): $(newlibfbmt)/%.o: rtlib/%.c $(LIBFB_H)
-	$(QUIET_CC)$(TARGET_CC) -DENABLE_MT $(ALLCFLAGS) -c $< -o $@
+	$(QUIET_CC)$(CC) -DENABLE_MT $(ALLCFLAGS) -c $< -o $@
 
 $(LIBFBMT_S): $(newlibfbmt)/%.o: rtlib/%.s $(LIBFB_H)
-	$(QUIET_CPPAS)$(TARGET_CC) -x assembler-with-cpp -DENABLE_MT $(ALLCFLAGS) -c $< -o $@
+	$(QUIET_CPPAS)$(CC) -x assembler-with-cpp -DENABLE_MT $(ALLCFLAGS) -c $< -o $@
 
 .PHONY: gfxlib2
 gfxlib2:
 ifndef DISABLE_GFX
-gfxlib2: $(new) $(newlibfb) $(new)/lib $(newlib)
+gfxlib2: $(new) $(newlibfb)
+ifndef ENABLE_STANDALONE
+gfxlib2: $(new)/lib
+endif
+gfxlib2: $(newlib)
 gfxlib2: $(newlibfbgfx) $(newlib)/libfbgfx.a
 endif
 
 $(newlib)/libfbgfx.a: $(LIBFBGFX_C) $(LIBFBGFX_S)
-	$(QUIET_AR)$(TARGET_AR) rcs $@ $^
+	$(QUIET_AR)$(AR) rcs $@ $^
 
 $(LIBFBGFX_C): $(newlibfbgfx)/%.o: gfxlib2/%.c $(LIBFBGFX_H)
-	$(QUIET_CC)$(TARGET_CC) $(ALLCFLAGS) -c $< -o $@
+	$(QUIET_CC)$(CC) $(ALLCFLAGS) -c $< -o $@
 
 $(LIBFBGFX_S): $(newlibfbgfx)/%.o: gfxlib2/%.s $(LIBFBGFX_H)
-	$(QUIET_CPPAS)$(TARGET_CC) -x assembler-with-cpp $(ALLCFLAGS) -c $< -o $@
+	$(QUIET_CPPAS)$(CC) -x assembler-with-cpp $(ALLCFLAGS) -c $< -o $@
 
 .PHONY: install install-compiler install-headers install-rtlib install-gfxlib2
 install: install-compiler install-headers install-rtlib install-gfxlib2
 
-install-compiler: $(prefixbin) $(prefixlib)
+install-compiler: $(prefixbin)
 	$(INSTALL_PROGRAM) $(newbin)/$(FBC_EXE) $(prefixbin)/
-  ifdef FB_LDSCRIPT
-	$(INSTALL_FILE) $(newlib)/$(FB_LDSCRIPT) $(prefixlib)/
-  endif
 
 ifdef ENABLE_STANDALONE
 install-headers: $(prefixinclude)
@@ -1214,6 +1211,9 @@ install-headers:
 endif
 
 install-rtlib: $(prefixlib)
+  ifdef FB_LDSCRIPT
+	$(INSTALL_FILE) $(newlib)/$(FB_LDSCRIPT) $(prefixlib)/
+  endif
 	$(INSTALL_FILE) $(newlib)/fbrt0.o $(newlib)/libfb.a $(prefixlib)/
   ifndef DISABLE_MT
 	$(INSTALL_FILE) $(newlib)/libfbmt.a $(prefixlib)/
@@ -1234,9 +1234,6 @@ uninstall: uninstall-compiler uninstall-headers uninstall-rtlib uninstall-gfxlib
 
 uninstall-compiler:
 	rm -f $(prefixbin)/$(FBC_EXE)
-  ifdef FB_LDSCRIPT
-	rm -f $(prefixlib)/$(FB_LDSCRIPT)
-  endif
 
 uninstall-headers:
   ifdef ENABLE_STANDALONE
@@ -1246,6 +1243,9 @@ uninstall-headers:
   endif
 
 uninstall-rtlib:
+  ifdef FB_LDSCRIPT
+	rm -f $(prefixlib)/$(FB_LDSCRIPT)
+  endif
 	rm -f $(prefixlib)/fbrt0.o $(prefixlib)/libfb.a
   ifndef DISABLE_MT
 	rm -f $(prefixlib)/libfbmt.a
@@ -1269,9 +1269,6 @@ clean: clean-compiler clean-headers clean-rtlib clean-gfxlib2
 
 clean-compiler:
 	rm -f $(newbin)/$(FBC_EXE) $(newcompiler)/*.o
-  ifdef FB_LDSCRIPT
-	rm -f $(newlib)/$(FB_LDSCRIPT)
-  endif
 	-rmdir $(newcompiler)
 
 clean-headers:
@@ -1281,6 +1278,9 @@ clean-headers:
   endif
 
 clean-rtlib:
+  ifdef FB_LDSCRIPT
+	rm -f $(newlib)/$(FB_LDSCRIPT)
+  endif
 	rm -f $(newlib)/fbrt0.o $(newlib)/libfb.a $(newlibfb)/*.o
 	-rmdir $(newlibfb)
   ifndef DISABLE_MT
@@ -1375,7 +1375,7 @@ help:
 	@echo "  uninstall[-component]      remove from prefix"
 	@echo "  release                    build a release package"
 	@echo "Variables, use them to..."
-	@echo "  FBFLAGS  add '-exx' or similar (affects the compiler only)"
+	@echo "  FB[C|L]FLAGS  add '-exx' or similar (affects the compiler only)"
 	@echo "  CFLAGS   override the default '-O2' (affects the runtime only)"
 	@echo "  new      use another build directory (default: 'new')"
 	@echo "  prefix   install in a specific place (default: '/usr/local')"
@@ -1383,7 +1383,6 @@ help:
 	@echo "  SUFFIX   append a string (e.g. '-0.23') to fbc and FB directory names"
 	@echo "  SUFFIX2  append a second string (e.g. '-test') only to the fbc executable"
 	@echo "  FBC, CC, AR  use specific tools (system triplets may be prefixed to CC/AR)"
-	@echo "  TARGET_AR, TARGET_CC  specify the tools directly"
 	@echo "  V        to get to see verbose command lines used by make"
 	@echo "FreeBASIC configuration options, use them to..."
 	@echo "  ENABLE_STANDALONE  use a simpler directory layout with fbc at toplevel"

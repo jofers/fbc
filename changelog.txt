@@ -13,6 +13,7 @@ Version 0.24.0:
 - 'PALETTE index, r, g, b' now uses 8-bit precision on each color value
 - The __FB_MIN_VERSION__() macro is no longer changed to ____FB_MIN_VERSION__() for -lang qb
 - SWAP no longer accepts function calls
+- ImageCreate() will now set an runtime error code on failure ("illegal function call" or "out of memory"), which can be retrieved with Err()
 
 [added]
 - EVENT_MOUSE_HWHEEL for X11
@@ -24,6 +25,7 @@ Version 0.24.0:
 - BASE keyword for explicit base class access inside methods: BASE.member (as opposed to THIS.member)
 - Runtime type information (RTTI) for classes extending other classes or the new builtin OBJECT class: IF variable IS SomeClass THEN ...
 - 'fbc -static' option to tell the linker to link against static libraries if installed
+- CONST may now be specified in front of the bodies of CONST methods, not just in the declaration, same as for STATIC
 
 [fixed]
 - Subtracting pointers from numbers, e.g. (i-p) was being allowed, rearranging to (p-i)
@@ -63,6 +65,8 @@ Version 0.24.0:
 - SWAP on strings failed/produced bad results when strings had different lengths
 - #3476021: SWAP didn't clear fixed-length string remainders
 - GFX_SHAPED_WINDOW didn't work properly on some modern Linux systems (thanks Sisophon2001 for the fix)
+- Wrong error message when calling non-const method on const UDT
+- Shell() on Unix didn't return the proper shell exit code
 
 
 Version 0.23.0:

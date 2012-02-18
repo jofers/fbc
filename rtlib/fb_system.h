@@ -1,6 +1,4 @@
-#ifndef __FB_SYS_H__
-#define __FB_SYS_H__
-
+       unsigned int fb_CpuDetect        ( void );
 FBCALL void         fb_Init             ( int argc, char **argv, int lang );
 FBCALL void         fb_End              ( int errlevel );
 FBCALL void 		fb_RtInit 			( void );
@@ -13,7 +11,6 @@ FBCALL void         fb_StrSwap          ( void *str1, int size1, int fillrem1,
 
        void         fb_hInit            ( void );
        void         fb_hEnd             ( int errlevel );
-       void         fb_hInitSignals     ( void );
 
 FBCALL void         fb_Beep             ( void );
 
@@ -33,10 +30,6 @@ FBCALL void        *fb_DylibSymbol      ( void *library, FBSTRING *symbol );
 FBCALL void 	   *fb_DylibSymbolByOrd ( void *library, short int symbol );
 FBCALL void         fb_DylibFree        ( void *library );
 
-       FB_DYLIB     fb_hDynLoad         (const char *libname, const char **funcname, void **funcptr);
-       int          fb_hDynLoadAlso     (FB_DYLIB lib, const char **funcname, void **funcptr, int count);
-       void         fb_hDynUnload       (FB_DYLIB *lib);
-
        char        *fb_hGetShortPath    ( char *src, char *dst, int maxlen );
 
        int          fb_hGetCurrentDir   ( char *dst, int maxlen );
@@ -46,5 +39,3 @@ FBCALL void         fb_DylibFree        ( void *library );
        int          fb_hIn              ( unsigned short port );
        int          fb_hOut             ( unsigned short port, unsigned char value );
 FBCALL int          fb_Wait             ( unsigned short port, int and, int xor);
-
-#endif /* __FB_SYS_H__ */
