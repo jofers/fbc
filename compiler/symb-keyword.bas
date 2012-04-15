@@ -263,6 +263,7 @@ end type
         ( @"DRAW"       , FB_TK_DRAW        , FB_TKCLASS_QUIRKWD ), _
         ( @"IMAGECREATE", FB_TK_IMAGECREATE	, FB_TKCLASS_QUIRKWD , KWD_OPTION_NO_QB ), _
         ( @"THREADCALL" , FB_TK_THREADCALL  , FB_TKCLASS_QUIRKWD , KWD_OPTION_NO_QB ), _
+        ( @"ITERATOR"   , FB_TK_ITERATOR    , FB_TKCLASS_KEYWORD , KWD_OPTION_NO_QB ), _
         ( NULL ) _
 	}
 

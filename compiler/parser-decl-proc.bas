@@ -28,6 +28,16 @@ function cProcDecl as integer
 		lexSkipToken( )
 		cProcHeader( 0, is_nested, FB_PROCOPT_ISPROTO or FB_PROCOPT_ISSUB )
 		function = TRUE
+        
+    case FB_TK_ITERATOR
+        '' ITERATOR FUNCTION...
+        lexSkipToken( )
+        if( lexGetToken( ) <> FB_TK_FUNCTION ) then
+            errReport( FB_ERRMSG_SYNTAXERROR )
+        end if
+        lexSkipToken( )
+		cProcHeader( FB_SYMBATTRIB_ITERATOR, is_nested, FB_PROCOPT_ISPROTO or FB_PROCOPT_ISSUB )
+		function = TRUE
 
 	case FB_TK_FUNCTION
 		lexSkipToken( )

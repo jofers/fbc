@@ -80,6 +80,18 @@ function cFunctionCall _
 		end if
 
 	else
+        '' iterator: swap out for funnel procedure
+        if( symbIsIterator( sym ) ) then
+            dim chain_ as FBSYMCHAIN ptr
+            dim id     as zstring * FB_MAXNAMELEN+1 
+            id = symbGetProcFunnelName( sym )
+            chain_ = symbLookupAt( symbGetParent( sym ), id, FALSE )
+            if( chain_ = NULL ) then
+                exit function
+            end if
+            sym = chain_->sym
+        end if
+        
 		'' '('?
 		if( lexGetToken( ) = CHAR_LPRNT ) then
 			lexSkipToken( )

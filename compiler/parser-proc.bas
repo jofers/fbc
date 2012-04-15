@@ -9,6 +9,12 @@
 #include once "rtl.bi"
 #include once "ast.bi"
 
+declare function hBuildArgFunnelDefinition( byval proc as FBSYMBOL ptr, byval is_funnel as integer, byval is_proto as integer ) as FBSYMBOL ptr
+declare sub      hBuildArgFunnelEntry( byval proc as FBSYMBOL ptr, byval is_nested as integer )
+declare function hBuildArgFunnel     ( byval proc as FBSYMBOL ptr, byval is_nested as integer ) as FBSYMBOL ptr
+declare function hBuildArgScatter    ( byval proc as FBSYMBOL ptr, byval is_nested as integer ) as FBSYMBOL ptr
+declare function hBuildArgFunnelExit (  ) as integer
+
 '' [ALIAS "id"]
 function cAliasAttribute() as zstring ptr
 	static as zstring * (FB_MAXNAMELEN+1) aliasid
@@ -656,6 +662,9 @@ function cProcHeader _
 	'' prototype?
 	if( (options and FB_PROCOPT_ISPROTO) <> 0 ) then
     	proc = symbAddPrototype( proc, @id, palias, dtype, subtype, attrib, mode )
+        hBuildArgFunnelDefinition( proc, FALSE, TRUE )
+        hBuildArgFunnelDefinition( proc, TRUE, TRUE )
+
     	if( proc = NULL ) then
 			errReport( FB_ERRMSG_DUPDEFINITION )
     	end if
@@ -673,8 +682,14 @@ function cProcHeader _
     	if( is_extern ) then
 			errReport( FB_ERRMSG_DECLOUTSIDECLASS )
     	end if
-
+        
     	head_proc = symbAddProc( proc, @id, palias, dtype, subtype, attrib, mode )
+        
+        if( attrib and FB_SYMBATTRIB_ITERATOR <> 0 ) then
+            '' declare by-proxy calls
+            hBuildArgFunnelDefinition( proc, FALSE, FALSE )
+            hBuildArgFunnelDefinition( proc, TRUE, FALSE )
+        end if
 
     	if( head_proc = NULL ) then
 			errReport( FB_ERRMSG_DUPDEFINITION, TRUE )
@@ -2077,6 +2092,9 @@ function cProcStmtBegin _
 	tkn = lexGetToken( )
 	select case as const tkn
 	case FB_TK_SUB, FB_TK_FUNCTION
+    
+    case FB_TK_ITERATOR
+        attrib or= FB_SYMBATTRIB_ITERATOR or FB_SYMBATTRIB_OVERLOADED
 
 	case FB_TK_CONSTRUCTOR
 		if( fbLangOptIsSet( FB_LANG_OPT_CLASS ) = FALSE ) then
@@ -2128,10 +2146,19 @@ function cProcStmtBegin _
 	'' ProcHeader
 	select case as const tkn
 	case FB_TK_SUB, FB_TK_FUNCTION
-		proc = cProcHeader( attrib, is_nested, iif( tkn = FB_TK_SUB, _
+		proc = cProcHeader( attrib, is_nested, iif( tkn = FB_TK_SUB or _
+                                                    tkn = FB_TK_ITERATOR, _
 		                                            FB_PROCOPT_ISSUB, _
 		                                            FB_PROCOPT_NONE ) )
-
+    case FB_TK_ITERATOR
+        if( lexGetToken( ) = FB_TK_FUNCTION ) then
+            lexSkipToken( )
+        else
+            errReport( FB_ERRMSG_SYNTAXERROR )
+            exit function
+        end if
+		proc = cProcHeader( attrib, is_nested, FB_PROCOPT_ISSUB )
+                                                    
 	case FB_TK_CONSTRUCTOR, FB_TK_DESTRUCTOR
 		proc = cCtorHeader( attrib, is_nested, FALSE )
 
@@ -2192,8 +2219,8 @@ function cProcStmtEnd _
 
 	dim as FB_CMPSTMTSTK ptr stk
 
-	function = FALSE
-
+	function = FALSE 
+    
 	stk = cCompStmtGetTOS( FB_TK_FUNCTION )
 	if( stk = NULL ) then
 		exit function
@@ -2203,8 +2230,15 @@ function cProcStmtEnd _
 	lexSkipToken( )
 
 	dim as integer res
+    dim as FBSYMBOL ptr proc_current
+    proc_current = parser.currproc
 
-	res = hMatch( stk->proc.tkn )
+    if( symbIsIterator( proc_current ) = TRUE ) then
+        res = hMatch( FB_TK_FUNCTION )
+    else
+        res = hMatch( stk->proc.tkn )
+    end if
+    
 	if( res = FALSE ) then
 		select case stk->proc.tkn
 		case FB_TK_SUB
@@ -2219,6 +2253,8 @@ function cProcStmtEnd _
 			errReport( FB_ERRMSG_EXPECTEDENDOPERATOR )
 		case FB_TK_PROPERTY
 			errReport( FB_ERRMSG_EXPECTEDENDPROPERTY )
+		case FB_TK_ITERATOR
+            errReport( FB_ERRMSG_EXPECTEDENDFUNCTION )
 		end select
 	end if
 
@@ -2237,6 +2273,353 @@ function cProcStmtEnd _
     '' always finish
 	function = astProcEnd( stk->proc.node, FALSE )
 
+    '' was the namespace changed?
+    dim is_nested as integer
+    is_nested = stk->proc.is_nested
+	if( is_nested ) then
+		symbNestEnd( TRUE )
+	end if
+
+	'' pop from stmt stack
+    cCompStmtPop( stk )
+    
+    if( symbIsIterator( proc_current ) ) then
+        dim as FBSYMBOL ptr proc_scatter, proc_funnel
+    
+        '' create funnel/unfunnel helper functions
+        proc_scatter = hBuildArgScatter( proc_current, is_nested )
+        proc_funnel = hBuildArgFunnel( proc_current, is_nested )
+        if( proc_scatter = NULL or proc_funnel = NULL ) then
+            function = FALSE
+            exit function
+        end if
+    end if
+    
+	if( res = FALSE ) then
+		function = FALSE
+	end if
+
+end function
+
+function hBuildArgFunnelDefinition(  _
+    byval proc as FBSYMBOL ptr, _
+    byval is_funnel as integer, _
+    byval is_proto as integer _
+) as FBSYMBOL ptr
+    dim as zstring  * FB_MAXNAMELEN+1 funnel_proc_id
+    dim as FBSYMBOL ptr               funnel_proc, head_proc
+    dim as FBSYMBOL ptr               param_proc, param_funnel
+    dim as FB_DATATYPE proc_funnel_dtype
+    dim as integer proc_funnel_attrib
+    dim as integer proc_funnel_mode
+    
+    function = NULL
+    
+    '' copy proc attributes
+    if( is_funnel = TRUE ) then
+        funnel_proc_id = symbGetProcFunnelName( proc )
+    else
+        funnel_proc_id = symbGetProcScatterName( proc )
+    end if
+    funnel_proc = symbPreAddProc( @funnel_proc_id )
+    symbGetAttrib( funnel_proc ) = symbGetAttrib( proc ) or FB_SYMBOPT_RTL
+	if( symbIsMethod( proc ) ) then
+		symbAddProcInstancePtr( symbGetParent( proc ), funnel_proc )
+	end if
+    
+    '' copy parameters
+    if( is_funnel = TRUE ) then
+        '' ...from args to heap
+        param_proc = symbGetProcHeadParam( proc )
+        for i as integer = 1 to symbGetProcParams( proc ) 
+            dim as ASTNODE ptr optexpr = NULL
+            if( symbGetParamOptExpr( param_proc ) <> NULL ) then
+                optexpr = astCloneTree( symbGetParamOptExpr( param_proc ) )
+            end if
+        
+            param_funnel = symbAddProcParam(    _
+                funnel_proc,                    _
+                symbGetName( param_proc ),      _
+                symbGetFullType( param_proc ),  _
+                symbGetSubType( param_proc ),   _
+                symbGetLen( param_proc ),       _
+                symbGetParamMode( param_proc ), _
+                symbGetAttrib( param_proc ),    _
+                optexpr                         _
+            )
+            
+            param_proc = symbGetParamNext( param_proc )
+        next i
+
+        '' define function
+        proc_funnel_dtype = typeAddrOf( FB_DATATYPE_VOID )
+        proc_funnel_attrib = symbGetAttrib( proc ) or FB_SYMBOPT_RTL
+        proc_funnel_mode = symbGetProcMode( proc )
+    else
+        '' ...from heap to args
+        param_funnel = symbAddProcParam(              _
+            funnel_proc,                              _
+            @"funnneled_arg",                         _
+            typeAddrOf( FB_DATATYPE_VOID ),           _
+            NULL,                                     _
+            symbCalcLen( FB_DATATYPE_POINTER, NULL ), _
+            FB_PARAMMODE_BYVAL,                       _
+            FB_SYMBATTRIB_PARAMBYVAL,                 _
+            NULL                                      _
+        )
+        
+        proc_funnel_dtype = FB_DATATYPE_VOID
+        proc_funnel_attrib = FB_SYMBATTRIB_NONE
+        proc_funnel_mode = env.target.fbcall
+    end if
+    
+    if( is_proto ) then
+        head_proc = symbAddPrototype(       _
+            funnel_proc,                    _
+            @funnel_proc_id,                _
+            NULL,                           _
+            proc_funnel_dtype,              _
+            NULL,                           _
+            proc_funnel_attrib,             _
+            proc_funnel_mode                _
+        )
+    else
+        head_proc = symbAddProc(            _
+            funnel_proc,                    _
+            @funnel_proc_id,                _
+            NULL,                           _
+            proc_funnel_dtype,              _
+            NULL,                           _
+            proc_funnel_attrib,             _
+            proc_funnel_mode                _
+        ) 
+    end if
+            
+    if( head_proc = NULL ) then
+		errReport( FB_ERRMSG_DUPDEFINITION, TRUE )
+		'' error recovery: create a fake symbol
+		dim dtype as FB_DATATYPE = FB_DATATYPE_VOID
+        dim subtype as FBSYMBOL ptr = NULL
+        dim attrib as integer = symbGetAttrib( proc )
+        dim mode as integer = symbGetProcMode( proc )
+        dim procnode as ASTNODE ptr = NULL
+        funnel_proc = CREATEFAKEID( funnel_proc )
+    else
+    	funnel_proc = head_proc
+    end if
+    
+    function = funnel_proc
+end function
+
+sub hBuildArgFunnelEntry(  _
+    byval funnel_proc as FBSYMBOL ptr, _
+    byval is_nested as integer _
+) 
+    dim as ASTNODE ptr                funnel_proc_node
+	dim as FB_CMPSTMTSTK ptr          stk
+
+    symbSetProcIncFile( funnel_proc, env.inf.incfile )
+    
+    '' enter function
+	funnel_proc_node = astProcBegin( funnel_proc, FALSE )
+	if( funnel_proc_node = NULL ) then
+		exit sub
+	end if
+
+	'' push to stmt stack
+	stk = cCompStmtPush( FB_TK_FUNCTION, _
+						 FB_CMPSTMT_MASK_DEFAULT or FB_CMPSTMT_MASK_DATA )
+	stk->proc.tkn = FB_TK_ITERATOR
+	stk->proc.node = funnel_proc_node
+	stk->proc.is_nested = is_nested
+	stk->proc.cmplabel = NULL
+	stk->proc.endlabel = astGetProcExitlabel( funnel_proc_node )
+
+	'' init
+	astAdd( astNewLABEL( astGetProcInitlabel( funnel_proc_node ) ) )
+end sub
+
+function hBuildArgScatter(     _
+    byval proc as FBSYMBOL ptr, _
+    byval is_nested as integer _
+) as FBSYMBOL ptr
+    dim as string name_scatter
+    dim as FBSYMBOL ptr proc_scatter, proc_symbol
+    dim as FBSYMCHAIN ptr chain_scatter
+    dim as FBSYMBOL ptr param, param_heap
+    dim as ASTNODE ptr call_node, rhs
+    dim as integer offset   
+    function = NULL
+    
+    if( proc = NULL ) then
+        exit function
+    end if
+    
+    '' name should already exist if properly declared
+    name_scatter = symbGetProcScatterName( proc )
+	chain_scatter = symbLookupAt( symbGetParent( proc ), name_scatter, FALSE, FALSE )
+    if( chain_scatter = NULL ) then
+        exit function
+    end if
+    proc_scatter = symbFindByClass( chain_scatter, FB_SYMBCLASS_PROC )
+
+    '' call original procedure
+    hBuildArgFunnelEntry( proc_scatter, is_nested )
+    param_heap = symbGetProcFirstParam( proc_scatter )
+    call_node = astNewCALL( proc )
+    
+    '' get heaped arguments    
+    param = symbGetProcLastParam( proc )
+    offset = 0
+    for i as integer = 1 to symbGetProcParams( proc )
+        dim as FB_DATATYPE dtype
+        dim as FBSYMBOL ptr subtype
+        dtype = symbGetFullType( param )
+        subtype = symbGetSubtype( param )
+        if( symbGetParamMode( param ) = FB_PARAMMODE_BYREF ) then
+            dtype = typeAddrOf( dtype )
+        end if
+        
+        rhs = astNewVAR( symbGetParamVar( param_heap ), 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+        rhs = astNewBOP( AST_OP_ADD, rhs, astNewCONSTi( offset ) )
+        rhs = astNewCONV( typeAddrOf( dtype ), subtype, rhs )
+        rhs = astNewDEREF( rhs )
+        
+        if( symbGetParamMode( param ) = FB_PARAMMODE_BYREF ) then
+            astNewARG( call_node, rhs, , FB_PARAMMODE_BYVAL )
+        else
+            astNewARG( call_node, rhs )
+        end if
+
+        offset += symbGetLen( param )
+        param = symbGetProcPrevParam( proc, param )
+    next i
+    
+    astAdd( call_node )
+    
+    '' free argument heap
+    proc_symbol = rtlProcLookup( "deallocate", FB_RTL_IDX_DEALLOCATE )
+    call_node = astNewCALL( proc_symbol )
+    rhs = astNewVAR( symbGetParamVar( param_heap ), 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+    astNewARG( call_node, rhs )
+    astAdd( call_node )
+    
+    hBuildArgFunnelExit( )
+    
+    function = proc_scatter
+end function
+
+function hBuildArgFunnel(       _
+    byval proc as FBSYMBOL ptr, _
+    byval is_nested as integer  _
+) as FBSYMBOL ptr
+    dim as string name_funnel, name_scatter
+    dim as FBSYMCHAIN ptr chain_funnel, chain_scatter
+    dim as FBSYMBOL ptr proc_funnel, proc_scatter, proc_symbol
+    dim as FBSYMBOL ptr param, param_heap, result
+    dim as ASTNODE ptr call_node, lhs, rhs
+    dim as integer stack_size
+    
+    function = NULL
+    
+    if( proc = NULL ) then
+        exit function
+    end if
+    
+    '' names should already exist if properly declared
+    name_funnel = symbGetProcFunnelName( proc )
+    name_scatter = symbGetProcScatterName( proc )
+	chain_funnel = symbLookupAt( symbGetParent( proc ), name_funnel, FALSE, FALSE )
+    chain_scatter = symbLookupAt( symbGetParent( proc ), name_scatter, FALSE, FALSE )
+    if( chain_funnel = NULL or chain_scatter = NULL ) then
+        exit function
+    end if
+    proc_funnel = symbFindByClass( chain_funnel, FB_SYMBCLASS_PROC )
+    proc_scatter = symbFindByClass( chain_scatter, FB_SYMBCLASS_PROC )
+    
+    hBuildArgFunnelEntry( proc_funnel, is_nested )
+    
+    '' Calculate stack size
+    param = symbGetProcFirstParam( proc_funnel )
+    stack_size = 0
+    for i as integer = 1 to symbGetProcParams( proc_funnel )
+        stack_size += symbGetLen( param )
+        param = symbGetProcNextParam( proc_funnel, param )
+    next i
+    
+    '' dim arg_heap as any ptr = allocate( sizeof( params ) )
+    param_heap = symbAddTempVar( typeAddrOf( FB_DATATYPE_VOID ), NULL, FALSE, FALSE )
+    proc_symbol = rtlProcLookup( "allocate", FB_RTL_IDX_ALLOCATE )
+    rhs = astNewCALL( proc_symbol )
+    astNewARG( rhs, astNewCONSTi( stack_size ) )
+    lhs = astNewVAR( param_heap, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+    astAdd( astNewASSIGN( lhs, rhs ) )
+
+    '' memcpy *CPtr(UByte ptr, arg_heap), first_arg, sizeof( params )
+    param = symbGetProcLastParam( proc_funnel )
+    if( symbGetParamMode( param ) = FB_PARAMMODE_BYREF ) then
+        rhs = astNewVAR( symbGetParamVar( param ), 0, typeAddrOf( symbGetFullType( param ) ), symbGetSubtype( param ) )
+    else
+        rhs = astNewVAR( symbGetParamVar( param ), 0, symbGetFullType( param ), symbGetSubtype( param ) )
+    end if
+    lhs = astNewVAR( param_heap, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+    lhs = astNewCONV( typeAddrOf( FB_DATATYPE_BYTE ), NULL, lhs )
+    lhs = astNewDEREF( lhs )
+    astAdd( rtlMemCopy( lhs, rhs, stack_size ) )
+    
+    '' Debug
+    /'
+    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "" ) )
+    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "START STACK DUMP" ) )
+    for i as integer = 1 to stack_size
+        rhs = astNewVAR( param_heap, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+        rhs = astNewCONV( typeAddrOf( FB_DATATYPE_UBYTE ), NULL, rhs )
+        rhs = astNewBOP( AST_OP_ADD, rhs, astNewCONSTi( i-1 ) )
+        rhs = astNewDEREF( rhs )
+        rtlPrint( NULL, FALSE, TRUE, rhs )
+        rtlPrint( NULL, FALSE, TRUE, astNewCONSTstr( " " ) )
+    next i
+    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "" ) )
+    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "END STACK DUMP" ) )
+    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "" ) )
+    '/
+    
+    '' Create iterator's fiber
+    proc_symbol = rtlProcLookup( @"fb_FiberIterCreate", FB_RTL_IDX_FIBERITERCREATE )
+    call_node = astNewCALL( proc_symbol )
+    rhs = astNewVAR( proc_scatter, 0, FB_DATATYPE_FUNCTION, proc_scatter )
+    rhs = astNewADDROF( rhs )
+    astNewARG( call_node, rhs )
+    rhs = astNewVAR( param_heap, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+    astNewARG( call_node, rhs )
+        
+    '' Return execution pointer
+    result = symbGetProcResult( proc_funnel )
+    symbSetProcStatReturnUsed( proc_funnel )
+	parser.ctxsym    = NULL
+	parser.ctx_dtype = FB_DATATYPE_INVALID
+    symbSetIsAccessed( result )
+	astAdd( astNewASSIGN( astBuildProcResultVar( proc_funnel, result ), call_node ) )
+    
+    '' exit function
+    hBuildArgFunnelExit( )
+    
+    function = proc_funnel
+end function
+    
+function hBuildArgFunnelExit (  ) as integer
+	dim as FB_CMPSTMTSTK ptr stk
+    
+    function = FALSE
+
+	stk = cCompStmtGetTOS( FB_TK_FUNCTION )
+	if( stk = NULL ) then
+		exit function
+	end if
+       
+    '' always finish
+	function = astProcEnd( stk->proc.node, FALSE )
+
 	'' was the namespace changed?
 	if( stk->proc.is_nested ) then
 		symbNestEnd( TRUE )
@@ -2244,9 +2627,7 @@ function cProcStmtEnd _
 
 	'' pop from stmt stack
 	cCompStmtPop( stk )
-
-	if( res = FALSE ) then
-		function = FALSE
-	end if
-
+    
+    function = TRUE
+    exit function
 end function

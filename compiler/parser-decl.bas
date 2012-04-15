@@ -63,7 +63,8 @@ function cDeclaration _
 			function = cVariableDecl( attrib )
 		end select
 
-	case FB_TK_FUNCTION, FB_TK_SUB, FB_TK_DESTRUCTOR, FB_TK_PROPERTY
+	case FB_TK_FUNCTION, FB_TK_SUB, FB_TK_DESTRUCTOR, _
+         FB_TK_PROPERTY, FB_TK_ITERATOR
 		if( attrib <> FB_SYMBATTRIB_NONE ) then
 			function = cProcStmtBegin( attrib )
 		else

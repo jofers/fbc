@@ -316,7 +316,8 @@ end type
 		@"Expected a CLASS, TYPE or UNION symbol type", _
         @"Expected IN", _
         @"UDT is not compatible with FOREACH", _
-        @"Iterator UDT is not compatible with FOREACH" _
+        @"Iterator UDT is not compatible with FOREACH", _
+        @"Expected 'END ITERATOR'" _
 	}
 
 

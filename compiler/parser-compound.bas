@@ -310,7 +310,7 @@ sub cExitStatement()
 		label = stk->select.endlabel
 
 	case FB_TK_SUB, FB_TK_FUNCTION, FB_TK_PROPERTY, FB_TK_OPERATOR, _
-		 FB_TK_CONSTRUCTOR, FB_TK_DESTRUCTOR
+		 FB_TK_CONSTRUCTOR, FB_TK_DESTRUCTOR, FB_TK_ITERATOR
 
 		if( parser.stmt.proc <> NULL ) then
 			label = parser.stmt.proc->proc.endlabel
@@ -323,11 +323,11 @@ sub cExitStatement()
 		dim as FB_ERRMSG errnum = FB_ERRMSG_OK
 
 		select case as const lexGetToken( )
-		case FB_TK_SUB
+		case FB_TK_SUB, FB_TK_ITERATOR
 			if( symbGetType( parser.currproc ) = FB_DATATYPE_VOID ) then
 				if( (symbGetAttrib( parser.currproc ) and _
 					 (FB_SYMBATTRIB_PROPERTY or FB_SYMBATTRIB_OPERATOR or _
-					  FB_SYMBATTRIB_CONSTRUCTOR or FB_SYMBATTRIB_DESTRUCTOR)) <> 0 ) then
+					  FB_SYMBATTRIB_CONSTRUCTOR or FB_SYMBATTRIB_DESTRUCTOR )) <> 0 ) then
 					errnum = FB_ERRMSG_ILLEGALOUTSIDEASUB
 				end if
 			else
@@ -574,6 +574,8 @@ function cCompStmtCheck( ) as integer
 			errmsg = FB_ERRMSG_EXPECTEDENDOPERATOR
 		case FB_TK_PROPERTY
 			errmsg = FB_ERRMSG_EXPECTEDENDPROPERTY
+		case FB_TK_ITERATOR
+			errmsg = FB_ERRMSG_EXPECTEDENDITERATOR
 		end select
 
     case FB_TK_DO

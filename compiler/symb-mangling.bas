@@ -398,7 +398,7 @@ function symbMangleType _
 		sig += "E"
 
     case FB_DATATYPE_STRING
-       	sig = "8FBSTRING"
+       	sig = "u8FBSTRING"
 
 	case else
 		'' builtin?
@@ -1154,7 +1154,7 @@ private function hGetOperatorName _
 		function = @"fR"
 
 	case AST_OP_STEP
-    	function = @"sT"
+    	function = @"v04step"
 
 	case AST_OP_NEXT
 		function = @"nX"

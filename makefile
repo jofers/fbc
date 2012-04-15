@@ -715,6 +715,7 @@ LIBFB_H := rtlib/fb_private_console.h
 LIBFB_H += rtlib/fb_private_hdynload.h
 LIBFB_H += rtlib/fb_private_intl.h
 LIBFB_H += rtlib/fb_private_thread.h
+LIBFB_H += rtlib/fb_private_fiber.h
 LIBFB_H += rtlib/fb_serial.h
 LIBFB_H += rtlib/fb_string.h
 LIBFB_H += rtlib/fb_system.h
@@ -750,6 +751,7 @@ LIBFB_C := \
   drv_intl_gettimeformat \
   drv_intl_getweekdayname \
   error error_getset error_ptrchk \
+  fiber_core \
   file_attr file_close file_copy file_datetime file_encod file_eof \
   file_exists file_free file_getarray file_get file_getstr file_get_wstr \
   file_hconvpath \
@@ -849,7 +851,7 @@ ifeq ($(TARGET_OS),dos)
     io_scroll_dos io_serial_dos io_width_dos \
     sys_exec_dos \
     sys_isr_dos sys_ports_dos \
-    thread_cond_stub thread_core_stub
+    thread_cond_stub thread_core_stub fiber_core_stub
   LIBFB_S += drv_isr
 endif
 
@@ -916,7 +918,7 @@ ifeq ($(TARGET_OS),xbox)
     io_printer_stub io_scroll_stub io_serial_stub \
     io_width_stub \
     sys_dylib_stub sys_exec_xbox \
-    thread_cond_stub thread_core_xbox
+    thread_cond_stub thread_core_xbox fiber_core_stub
   LIBFB_S += alloca
 endif
 
@@ -936,7 +938,7 @@ ifneq ($(filter darwin freebsd linux netbsd openbsd solaris,$(TARGET_OS)),)
     io_printbuff_unix io_printbuff_wstr_unix io_printer_unix \
     io_scroll_unix io_width_unix io_xfocus_unix \
     sys_dylib_unix sys_exec_unix \
-    thread_cond_unix thread_core_unix
+    thread_cond_unix thread_core_unix fiber_core_unix
 
   ifndef DISABLE_X
     LIBFB_H += rtlib/fb_private_scancodes_x11.h
@@ -965,7 +967,7 @@ ifneq ($(filter cygwin win32,$(TARGET_OS)),)
     io_window_win32 \
     sys_dylib_win32 sys_exec_win32 \
     sys_ports_win32 \
-    thread_cond_win32 thread_core_win32
+    thread_cond_win32 thread_core_win32 fiber_core_win32
   LIBFB_S += alloca
 endif
 

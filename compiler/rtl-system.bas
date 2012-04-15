@@ -613,7 +613,107 @@ declare function 	hThreadCall_cb		( byval sym as FBSYMBOL ptr ) as integer
 	 			) _
 	 		} _
 	 	), _
-	 	/' EOL '/ _
+        /' fibercreate( byval proc as sub( param as any ptr ), byval param as any ptr, byval stack_size as integer ) as any ptr '/ _
+		( _
+			@"fibercreate", @"fb_FiberCreate", _
+	 		typeAddrOf( FB_DATATYPE_VOID ), FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB, _
+	 		5, _
+	 		{ _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_FUNCTION ), FB_PARAMMODE_BYVAL, TRUE, 1 _
+	 			), _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, FALSE _
+	 			), _
+	 			( _
+	 				FB_DATATYPE_VOID, NULL, FALSE _
+	 			), _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			), _
+	 			( _
+	 				FB_DATATYPE_INTEGER, FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _
+        /' fb_FiberIterCreate( byval as sub( param as any ptr ), byval as any ptr ) as any ptr '/ _
+		( _
+			@"fb_FiberIterCreate", NULL, _
+	 		typeAddrOf( FB_DATATYPE_VOID ), FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB, _
+	 		4, _
+	 		{ _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_FUNCTION ), FB_PARAMMODE_BYVAL, TRUE, 1 _
+	 			), _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, FALSE _
+	 			), _
+	 			( _
+	 				FB_DATATYPE_VOID, NULL, FALSE _
+	 			), _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _
+        /' fiberdestroy( byval as any ptr ) '/ _
+		( _
+			@"fiberdestroy", @"fb_FiberDestroy", _
+	 		FB_DATATYPE_VOID, FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB, _
+	 		1, _
+	 		{ _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _
+        /' fiberswitch( byval as any ptr ) '/ _
+		( _
+			@"fiberswitch", @"fb_FiberSwitch", _
+	 		FB_DATATYPE_VOID, FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB, _
+	 		1, _
+	 		{ _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _
+        /' fibergetcurrent( ) as any ptr '/ _
+		( _
+			@"fibergetcurrent", @"fb_FiberGetCurrent", _
+	 		typeAddrOf( FB_DATATYPE_VOID ), FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB, _
+	 		0 _
+	 	), _
+        /' yield( byref as any ) '/ _
+		( _
+			@"yield", @"fb_FiberYield", _
+	 		FB_DATATYPE_VOID, FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB, _
+	 		1, _
+	 		{ _
+	 			( _
+	 				FB_DATATYPE_VOID, FB_PARAMMODE_BYREF, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _
+        /' fibergetyield( as any ptr ) as any ptr '/ _
+ 		( _
+			@"fibergetyield", @"fb_FiberGetYield", _
+	 		typeAddrOf( FB_DATATYPE_VOID ), FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB, _
+	 		1, _
+	 		{ _
+	 			( _
+	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _       
+        /' EOL '/ _
 	 	( _
 	 		NULL _
 	 	) _

@@ -165,6 +165,8 @@ enum FB_SYMBATTRIB
 	FB_SYMBATTRIB_PARAMINSTANCE	= FB_SYMBATTRIB_METHOD
 	FB_SYMBATTRIB_STATICLOCALS	= FB_SYMBATTRIB_OPTIONAL
 	FB_SYMBATTRIB_SUFFIXED		= FB_SYMBATTRIB_NAKED
+    FB_SYMBATTRIB_ITERATOR      = FB_SYMBATTRIB_PARAMBYDESC
+
 end enum
 
 '' parameter modes
@@ -187,6 +189,10 @@ enum FB_FUNCMODE
     '' it depends on the [cross-compiling] target).
     FB_USE_FUNCMODE_FBCALL = -1
 end enum
+
+'' funnel/scatter prefixes
+#define FB_PROCPREFIX_FUNNEL @"__FBFUNNEL_"
+#define FB_PROCPREFIX_SCATTER @"__FBSCATTER_"
 
 '' options when adding new symbols
 enum FB_SYMBOPT
@@ -2340,6 +2346,9 @@ declare function symbGetUDTBaseSymbol _
 	f->proc.ext->opovl.op = op_
 #endmacro
 
+#define symbGetProcFunnelName(a) ( "__FB_FUNNEL_" + *symbGetName( a ) )
+#define symbGetProcScatterName(a) ( "__FB_SCATTER_" + *symbGetName( a ) )
+
 #define symbGetParamMode(a) a->param.mode
 
 #define symbGetParamVar(a) a->param.var
@@ -2408,6 +2417,8 @@ declare function symbGetUDTBaseSymbol _
 #define symbIsOperator(s) ((s->attrib and FB_SYMBATTRIB_OPERATOR) <> 0)
 
 #define symbIsProperty(s) ((s->attrib and FB_SYMBATTRIB_PROPERTY) <> 0)
+
+#define symbIsIterator(s) ((s->attrib and FB_SYMBATTRIB_ITERATOR) <> 0)
 
 #define symbIsMethod(s) ((s->attrib and FB_SYMBATTRIB_METHOD) <> 0)
 
