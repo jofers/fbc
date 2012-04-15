@@ -662,8 +662,10 @@ function cProcHeader _
 	'' prototype?
 	if( (options and FB_PROCOPT_ISPROTO) <> 0 ) then
     	proc = symbAddPrototype( proc, @id, palias, dtype, subtype, attrib, mode )
-        hBuildArgFunnelDefinition( proc, FALSE, TRUE )
-        hBuildArgFunnelDefinition( proc, TRUE, TRUE )
+        if( attrib and FB_SYMBATTRIB_ITERATOR <> 0 ) then
+            hBuildArgFunnelDefinition( proc, FALSE, TRUE )
+            hBuildArgFunnelDefinition( proc, TRUE, TRUE )
+        end if
 
     	if( proc = NULL ) then
 			errReport( FB_ERRMSG_DUPDEFINITION )
@@ -684,12 +686,6 @@ function cProcHeader _
     	end if
         
     	head_proc = symbAddProc( proc, @id, palias, dtype, subtype, attrib, mode )
-        
-        if( attrib and FB_SYMBATTRIB_ITERATOR <> 0 ) then
-            '' declare by-proxy calls
-            hBuildArgFunnelDefinition( proc, FALSE, FALSE )
-            hBuildArgFunnelDefinition( proc, TRUE, FALSE )
-        end if
 
     	if( head_proc = NULL ) then
 			errReport( FB_ERRMSG_DUPDEFINITION, TRUE )
@@ -723,8 +719,11 @@ function cProcHeader _
 				end if
 
     			head_proc = symbAddProc( proc, @id, palias, dtype, subtype, attrib, mode )
+                hBuildArgFunnelDefinition( proc, FALSE, TRUE )
+                hBuildArgFunnelDefinition( proc, TRUE, TRUE )
+
     			'' dup def?
-			if( head_proc = NULL ) then
+                if( head_proc = NULL ) then
 					errReport( FB_ERRMSG_DUPDEFINITION, TRUE )
 					'' error recovery: create a fake symbol
 					return CREATEFAKEID( proc )
@@ -2312,6 +2311,7 @@ function hBuildArgFunnelDefinition(  _
     dim as FB_DATATYPE proc_funnel_dtype
     dim as integer proc_funnel_attrib
     dim as integer proc_funnel_mode
+    dim as integer is_nested
     
     function = NULL
     
@@ -2321,11 +2321,16 @@ function hBuildArgFunnelDefinition(  _
     else
         funnel_proc_id = symbGetProcScatterName( proc )
     end if
+    
     funnel_proc = symbPreAddProc( @funnel_proc_id )
+    if( is_proto = FALSE ) then
+        if( symbGetParent( proc ) <> NULL ) then
+            is_nested = hDoNesting( symbGetParent( proc ) )
+        end if
+    end if
+    
+    '' instance ptr should automatically be copied with rest of parameters
     symbGetAttrib( funnel_proc ) = symbGetAttrib( proc ) or FB_SYMBOPT_RTL
-	if( symbIsMethod( proc ) ) then
-		symbAddProcInstancePtr( symbGetParent( proc ), funnel_proc )
-	end if
     
     '' copy parameters
     if( is_funnel = TRUE ) then
@@ -2441,7 +2446,7 @@ end sub
 
 function hBuildArgScatter(     _
     byval proc as FBSYMBOL ptr, _
-    byval is_nested as integer _
+    byval is_nested_in as integer _
 ) as FBSYMBOL ptr
     dim as string name_scatter
     dim as FBSYMBOL ptr proc_scatter, proc_symbol
@@ -2449,6 +2454,8 @@ function hBuildArgScatter(     _
     dim as FBSYMBOL ptr param, param_heap
     dim as ASTNODE ptr call_node, rhs
     dim as integer offset   
+    dim as integer is_nested
+    is_nested = is_nested_in
     function = NULL
     
     if( proc = NULL ) then
@@ -2457,12 +2464,16 @@ function hBuildArgScatter(     _
     
     '' name should already exist if properly declared
     name_scatter = symbGetProcScatterName( proc )
-	chain_scatter = symbLookupAt( symbGetParent( proc ), name_scatter, FALSE, FALSE )
+    chain_scatter = symbLookupAt( symbGetParent( proc ), name_scatter, FALSE, FALSE )
     if( chain_scatter = NULL ) then
-        exit function
+        proc_scatter = hBuildArgFunnelDefinition( proc, FALSE, FALSE )
+    else
+        proc_scatter = symbFindByClass( chain_scatter, FB_SYMBCLASS_PROC )
+        if( symbGetParent( proc ) <> null ) then
+            is_nested = hDoNesting( symbGetParent( proc ) )
+        end if
     end if
-    proc_scatter = symbFindByClass( chain_scatter, FB_SYMBCLASS_PROC )
-
+    
     '' call original procedure
     hBuildArgFunnelEntry( proc_scatter, is_nested )
     param_heap = symbGetProcFirstParam( proc_scatter )
@@ -2511,14 +2522,15 @@ end function
 
 function hBuildArgFunnel(       _
     byval proc as FBSYMBOL ptr, _
-    byval is_nested as integer  _
+    byval is_nested_in as integer  _
 ) as FBSYMBOL ptr
     dim as string name_funnel, name_scatter
     dim as FBSYMCHAIN ptr chain_funnel, chain_scatter
     dim as FBSYMBOL ptr proc_funnel, proc_scatter, proc_symbol
     dim as FBSYMBOL ptr param, param_heap, result
     dim as ASTNODE ptr call_node, lhs, rhs
-    dim as integer stack_size
+    dim as integer stack_size, is_nested
+    is_nested = is_nested_in
     
     function = NULL
     
@@ -2531,11 +2543,19 @@ function hBuildArgFunnel(       _
     name_scatter = symbGetProcScatterName( proc )
 	chain_funnel = symbLookupAt( symbGetParent( proc ), name_funnel, FALSE, FALSE )
     chain_scatter = symbLookupAt( symbGetParent( proc ), name_scatter, FALSE, FALSE )
-    if( chain_funnel = NULL or chain_scatter = NULL ) then
+    if( chain_scatter = NULL ) then
         exit function
+    else
+        proc_scatter = symbFindByClass( chain_scatter, FB_SYMBCLASS_PROC )
     end if
-    proc_funnel = symbFindByClass( chain_funnel, FB_SYMBCLASS_PROC )
-    proc_scatter = symbFindByClass( chain_scatter, FB_SYMBCLASS_PROC )
+    if( chain_funnel = NULL ) then
+        proc_funnel = hBuildArgFunnelDefinition( proc, TRUE, FALSE )
+    else
+        proc_funnel = symbFindByClass( chain_funnel, FB_SYMBCLASS_PROC )
+        if( symbGetParent( proc ) <> null ) then
+            is_nested = hDoNesting( symbGetParent( proc ) )
+        end if
+    end if
     
     hBuildArgFunnelEntry( proc_funnel, is_nested )
     

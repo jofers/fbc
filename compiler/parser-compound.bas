@@ -486,7 +486,7 @@ function cCompoundEnd( ) as integer
 		function = cSelectStmtEnd( )
 
 	case FB_TK_SUB, FB_TK_FUNCTION, FB_TK_CONSTRUCTOR, FB_TK_DESTRUCTOR, _
-		 FB_TK_OPERATOR, FB_TK_PROPERTY
+		 FB_TK_OPERATOR, FB_TK_PROPERTY, FB_TK_ITERATOR
 		function = cProcStmtEnd( )
 
 	case FB_TK_SCOPE

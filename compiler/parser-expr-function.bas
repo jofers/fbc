@@ -39,7 +39,9 @@ function cFunctionCall _
 
 	dim as FB_PARSEROPT options = FB_PARSEROPT_ISFUNC
 
-    hMethodCallAddInstPtrOvlArg( sym, thisexpr, @arg_list, @options )
+    if( symbIsIterator( sym ) = FALSE ) then
+        hMethodCallAddInstPtrOvlArg( sym, thisexpr, @arg_list, @options )
+    end if
 
 	'' property?
 	if( symbIsProperty( sym ) ) then
@@ -89,7 +91,9 @@ function cFunctionCall _
             if( chain_ = NULL ) then
                 exit function
             end if
-            sym = chain_->sym
+            sym = symbFindByClass( chain_, FB_SYMBCLASS_PROC )
+
+            hMethodCallAddInstPtrOvlArg( sym, thisexpr, @arg_list, @options )
         end if
         
 		'' '('?

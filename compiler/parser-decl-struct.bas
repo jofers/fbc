@@ -136,6 +136,22 @@ private function hTypeProtoDecl _
 
 		cProcHeader( attrib, is_nested, _
 		             FB_PROCOPT_ISPROTO or FB_PROCOPT_HASPARENT )
+                     
+    case FB_TK_ITERATOR
+		if( (attrib and FB_SYMBATTRIB_STATIC) = 0 ) then
+			attrib or= FB_SYMBATTRIB_METHOD
+		end if
+        attrib or= FB_SYMBATTRIB_ITERATOR
+
+        '' ITERATOR FUNCTION...
+        lexSkipToken( )
+        if( lexGetToken( ) <> FB_TK_FUNCTION ) then
+            errReport( FB_ERRMSG_SYNTAXERROR )
+        end if
+        lexSkipToken( )
+		cProcHeader( attrib, is_nested, FB_PROCOPT_ISPROTO or FB_PROCOPT_ISSUB )
+		function = TRUE
+
 
 	case else
 		errReport( FB_ERRMSG_SYNTAXERROR )
