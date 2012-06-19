@@ -905,14 +905,17 @@ function cForStmtBegin _
 		end if
         
 	case else
-		'' not a ptr?
-		if( typeIsPtr( dtype ) = FALSE ) then
-			errReport( FB_ERRMSG_EXPECTEDSCALAR, TRUE )
-			'' error recovery: fake a var
-			astDelTree( idexpr )
-			idexpr = CREATEFAKEID( )
-			dtype = astGetDataType( idexpr )
-		end if
+        if( keywd = FB_TK_FOR ) then
+
+            '' not a ptr?
+            if( typeIsPtr( dtype ) = FALSE ) then
+                errReport( FB_ERRMSG_EXPECTEDSCALAR, TRUE )
+                '' error recovery: fake a var
+                astDelTree( idexpr )
+                idexpr = CREATEFAKEID( )
+                dtype = astGetDataType( idexpr )
+            end if
+        end if
 	end select
 
     '' push a FOR context
