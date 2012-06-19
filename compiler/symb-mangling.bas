@@ -72,7 +72,9 @@ declare function hGetProcParamsTypeCode _
 		"!", _                  '' namespace
 		"F", _					'' function
 		"!", _                  '' fwd-ref
-		"P" _                   '' pointer
+		"P", _                  '' pointer
+        "",  _                  '' XMM-WORD?
+        "!"  _                  '' iterator (treat as pointer)
 	}
 
 '':::::
@@ -399,6 +401,11 @@ function symbMangleType _
 
     case FB_DATATYPE_STRING
        	sig = "u8FBSTRING"
+        
+    case FB_DATATYPE_ITER
+        '' use a vender defined type qualifier
+        sig = "U6FBITER" 
+        sig += symbMangleType( symbGetFullType( subtype ), symbGetSubtype( subtype ) )
 
 	case else
 		'' builtin?

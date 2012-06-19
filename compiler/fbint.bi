@@ -535,8 +535,9 @@ enum FB_TOKEN
     
     FB_TK_THREADCALL
     FB_TK_ITERATOR
+    FB_TK_YIELD
 
-	FB_TOKENS = FB_TK_ITERATOR - FB_TK_EOF
+	FB_TOKENS = FB_TK_YIELD - FB_TK_EOF
 end enum
 
 '' single char tokens

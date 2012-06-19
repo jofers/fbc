@@ -2854,3 +2854,42 @@ sub symbFreeOvlCallArgs _
 
 end sub
 
+'':::::
+function symbAddIter _
+    ( _
+        byval dtype as FB_DATATYPE, _
+        byval subtype as FBSYMBOL ptr _
+    ) as FBSYMBOL ptr
+    
+    dim as FBSYMBOL ptr parent
+    dim as FB_SYMBOPT options
+    
+    '' if in main (or inside a NS), add the iterator to the main table
+    if( parser.scope = FB_MAINSCOPE ) then
+		parent = @symbGetGlobalNamespc( )
+		options = FB_SYMBOPT_MOVETOGLOB
+    else
+    	parent = symbGetCurrentNamespc( )
+    	options = 0
+	end if
+    
+    dim as FBSYMBOLTB ptr symtb = @symbGetCompSymbTb( parent )
+    dim as FBHASHTB ptr hashtb = @symbGetCompHashTb( parent )
+    dim as FBSYMBOL ptr symb
+    dim as FBSYMCHAIN ptr chain_
+
+	'' already exists? 
+    dim as string id = "__FB_ITERATOR_" + symbMangleType(dtype, subtype)
+    chain_ = symbLookupAt( parent, id, TRUE, FALSE )
+	if( chain_ <> NULL ) then
+		return chain_->sym
+	end if
+    
+	symb = symbNewSymbol( options, NULL, _
+	                       symtb, hashtb, _
+	                       FB_SYMBCLASS_ITER, _
+	                       id, NULL, dtype, subtype, NULL )
+
+	function = symb
+                           
+end function

@@ -844,6 +844,36 @@ function astPtrCheck _
 
 end function
 
+function astIterCheck _
+	( _
+		byval idtype as integer, _
+		byval isubtype as FBSYMBOL ptr, _
+		byval expr as ASTNODE ptr _
+	) as integer
+    
+	dim as FBSYMBOL ptr esubtype = any
+
+	function = FALSE
+    
+	'' expr not an iterator?
+	if( astGetFullType( expr ) <> FB_DATATYPE_ITER ) then
+		'' Only ok if it's a 0 constant
+		if (astIsCONST(expr) = FALSE) then
+			exit function
+		end if
+		return (astGetValInt(expr) = 0)
+    
+    '' is either side an any iterator?
+    elseif( ( symbGetFullType( astGetSubType( expr ) ) = FB_DATATYPE_VOID ) or _
+        ( symbGetFullType( isubtype ) = FB_DATATYPE_VOID ) ) then
+        return TRUE
+    end if
+    
+   	'' check sub types
+	function = symbIsEqual( astGetSubType( expr ), isubtype )
+    
+end function
+
 '':::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 '' node type update
 '':::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::

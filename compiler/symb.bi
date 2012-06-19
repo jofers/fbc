@@ -41,9 +41,10 @@ enum FB_DATATYPE
 	FB_DATATYPE_FWDREF
 	FB_DATATYPE_POINTER
 	FB_DATATYPE_XMMWORD
+    FB_DATATYPE_ITER
 end enum
 
-const FB_DATATYPES = (FB_DATATYPE_XMMWORD - FB_DATATYPE_VOID) + 1
+const FB_DATATYPES = (FB_DATATYPE_ITER - FB_DATATYPE_VOID) + 1
 
 const FB_DT_TYPEMASK 		= &b00000000000000000000000000011111 '' max 32 built-in dts
 const FB_DT_PTRMASK  		= &b00000000000000000000000111100000
@@ -77,6 +78,7 @@ enum FB_SYMBCLASS
 	FB_SYMBCLASS_FWDREF							'' forward definition
 	FB_SYMBCLASS_SCOPE
 	FB_SYMBCLASS_NSIMPORT						'' namespace import (an USING)
+    FB_SYMBCLASS_ITER
 end enum
 
 '' symbol state mask
@@ -464,6 +466,11 @@ type FBS_CONST
 	val				as FBVALUE
 end type
 
+'' iter
+type FBS_ITER
+    reserved        as any ptr
+end type
+
 ''
 type FB_CALL_ARG								'' used by overloaded function calls
 	expr			as ASTNODE_ ptr
@@ -679,6 +686,7 @@ type FBSYMBOL
 		scp			as FBS_SCOPE
 		nspc		as FBS_NAMESPACE
 		nsimp 		as FBS_NSIMPORT
+        iter        as FBS_ITER
 	end union
 
 	hash			as FBSYMHASH				'' hash tb (namespace) it's part of
@@ -1849,6 +1857,13 @@ declare sub symbFreeOvlCallArgs _
 		byval list as TLIST ptr, _
 		byval arg_list as FB_CALL_ARG_LIST ptr _
 	)
+    
+declare function symbAddIter _
+    ( _
+        byval dtype as FB_DATATYPE, _
+        byval subtype as FBSYMBOL ptr _
+    ) as FBSYMBOL ptr
+
 
 declare function symbIsUDTReturnedInRegs _
 	( _

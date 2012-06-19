@@ -128,7 +128,8 @@ declare function _init_opFnTB_SSE _
 		( FB_DATACLASS_INTEGER, FB_INTEGERSIZE  , 2, "dword ptr" ), _	'' function
 		( FB_DATACLASS_INTEGER, 1			    , 0, "byte ptr"  ), _	'' fwd-ref
 		( FB_DATACLASS_INTEGER, FB_POINTERSIZE  , 2, "dword ptr" ), _	'' pointer
-		( FB_DATACLASS_INTEGER, 16              , 3, "xmmword ptr" ) _	'' 128-bit 
+		( FB_DATACLASS_INTEGER, 16              , 3, "xmmword ptr" ), _	'' 128-bit 
+        ( FB_DATACLASS_INTEGER, FB_POINTERSIZE  , 2, "dword ptr" ) _    '' iterator
 	}
 
 const EMIT_MAXKEYWORDS = 600

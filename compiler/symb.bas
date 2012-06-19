@@ -1892,6 +1892,9 @@ function symbCalcLen _
 
 	case FB_DATATYPE_POINTER
 		function = FB_POINTERSIZE
+        
+    case FB_DATATYPE_ITER
+        function = FB_POINTERSIZE
 
 	case else
 		function = 0

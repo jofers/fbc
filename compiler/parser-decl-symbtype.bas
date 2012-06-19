@@ -366,7 +366,13 @@ function cSymbolType _
 			if( subtype = NULL ) then
 				exit function
 			end if
-
+            
+        case FB_TK_ITERATOR
+            '' iterator is a qualifier, not a type
+            errReport( FB_ERRMSG_SYNTAXERROR, TRUE )
+            dtype = typeAddrOf( FB_DATATYPE_VOID )
+            subtype = NULL
+            
 		case else
 			dim as FBSYMCHAIN ptr chain_ = NULL
 			dim as FBSYMBOL ptr base_parent = any
@@ -510,7 +516,7 @@ function cSymbolType _
 			dtype = typeSetIsConst( dtype )
 		end if
 
-		'' (CONST (PTR|POINTER) | (PTR|POINTER))*
+		'' (CONST (PTR|POINTER) | (PTR|POINTER))* ITERATOR?
 		do
 			select case as const lexGetToken( )
 			'' CONST PTR?
@@ -543,6 +549,15 @@ function cSymbolType _
 				end if
 
 				lexSkipToken( )
+
+            '' ITERATOR? 
+            case FB_TK_ITERATOR
+                '' really a pointer with metadata
+                subtype = symbAddIter( dtype, subtype )
+                dtype = FB_DATATYPE_ITER
+                lgt = FB_POINTERSIZE
+                ptr_cnt = 0
+                lexSkipToken( )
 
 			case else
 				exit do
@@ -578,6 +593,8 @@ function cSymbolType _
 			end select
 		end if
 	end if
+    
+    
 
 	function = TRUE
 

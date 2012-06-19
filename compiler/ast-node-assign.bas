@@ -228,6 +228,15 @@ private sub hCheckConstAndPointerOps _
 		errReport( FB_ERRMSG_ILLEGALASSIGNMENT, TRUE )
 		return
 	end if
+    
+    '' check iter
+    if( ldtype = FB_DATATYPE_ITER ) then
+        if( astIterCheck( ldtype, l->subtype, r ) = FALSE ) then
+			errReportWarn( FB_WARNINGMSG_SUSPICIOUSITERASSIGN )
+        end if
+    elseif( rdtype = FB_DATATYPE_ITER ) then
+		errReportWarn( FB_WARNINGMSG_IMPLICITCONVERSION )
+    end if
 
 	if( typeIsPtr( ldtype ) ) then
 		if( astPtrCheck( ldtype, l->subtype, r ) = FALSE ) then

@@ -33,7 +33,7 @@ private function hFuncReturn _
 	lexSkipToken( )
 
 	'' function?
-	if( symbGetType( parser.currproc ) <> FB_DATATYPE_VOID ) then
+	if( (symbGetType( parser.currproc ) <> FB_DATATYPE_VOID) and (( parser.currproc->attrib and FB_SYMBATTRIB_ITERATOR ) = 0 )) then
 		checkexpr = TRUE
 	else
 		'' Comment|StmtSep|EOF|ELSE|END IF|END IF? just exit

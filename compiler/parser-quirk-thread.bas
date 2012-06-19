@@ -12,7 +12,7 @@
 '':::::
 '' ThreadCallFunc =   THREADCALL proc_call
 ''
-function cThreadCallFunc() as ASTNODE ptr
+function cThreadCallFunc( ) as ASTNODE ptr
     dim as FBSYMBOL ptr sym, result
     dim as FBSYMCHAIN ptr chain_
     dim as integer check_paren
@@ -74,4 +74,63 @@ function cThreadCallFunc() as ASTNODE ptr
 
     '' transform the call into a threadcall
 	function = rtlThreadCall( childcall )
+end function
+
+function cYieldStmt( ) as integer
+    dim expr as ASTNODE ptr
+    dim id as string
+    dim proc_funnel as FBSYMCHAIN ptr
+    dim proc_iter as FBSYMBOL ptr
+    dim proc_fiberyield as FBSYMBOL ptr
+    dim call_fiberyield as ASTNODE ptr
+    dim dtype as FB_DATATYPE
+    dim subtype as FBSYMBOL ptr
+    
+    function = FALSE
+    
+    '' inside an iterator?
+    if( symbIsIterator( parser.currproc ) = FALSE ) then
+        errReport( FB_ERRMSG_ILLEGALOUTSIDEITERATOR )
+        exit function
+    end if
+
+    '' YIELD
+    lexSkipToken( )
+    
+    '' yielded expression
+    expr = cExpression( )
+    if( expr = NULL ) then
+        exit function
+    end if
+    
+    '' find iterator type
+    id = symbGetProcFunnelName( parser.currproc )
+    proc_funnel = symbLookupAt( symbGetParent( parser.currproc ), id, FALSE, FALSE )
+    if( proc_funnel = NULL ) then
+        exit function
+    end if
+    proc_iter = symbGetSubtype( proc_funnel->sym )
+    if( proc_iter = NULL ) then
+        exit function
+    end if
+    dtype = symbGetFullType( proc_iter )
+    subtype = symbGetSubtype( proc_iter )
+    
+    '' convert expression to iter type to catch type mismatch
+    expr = astNewCONV( dtype, subtype, expr )
+    if( expr = NULL ) then
+ 		errReport( FB_ERRMSG_TYPEMISMATCH, TRUE )
+        exit function
+    end if
+    
+    '' call FIBERYIELD( expr )
+    proc_fiberyield = rtlProcLookup( @"fiberyield", FB_RTL_IDX_FIBERYIELD )
+    call_fiberyield = astNewCALL( proc_fiberyield )
+    if( call_fiberyield = NULL ) then
+        exit function
+    end if
+    astNewARG( call_fiberyield, expr )
+    astAdd( call_fiberyield )
+    
+    function = TRUE
 end function

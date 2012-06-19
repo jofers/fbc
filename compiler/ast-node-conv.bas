@@ -455,6 +455,12 @@ function astNewCONV _
 		if( symbGetUDTBaseLevel( l->subtype, to_subtype ) = 0 ) then
 			exit function
 		End If
+        
+    case FB_DATATYPE_ITER
+        '' iterators only convert to "any iterator"
+        if( ( l->dtype <> FB_DATATYPE_ITER ) or ( symbGetFullType( to_subtype ) <> FB_DATATYPE_VOID ) ) then
+            exit function
+        end if           
 
 	case else
 		select case typeGet( ldtype )

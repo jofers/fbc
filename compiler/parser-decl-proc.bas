@@ -36,7 +36,7 @@ function cProcDecl as integer
             errReport( FB_ERRMSG_SYNTAXERROR )
         end if
         lexSkipToken( )
-		cProcHeader( FB_SYMBATTRIB_ITERATOR, is_nested, FB_PROCOPT_ISPROTO or FB_PROCOPT_ISSUB )
+		cProcHeader( FB_SYMBATTRIB_ITERATOR, is_nested, FB_PROCOPT_ISPROTO )
 		function = TRUE
 
 	case FB_TK_FUNCTION

@@ -998,6 +998,9 @@ declare function hCheckForDefiniteExprs _
 	) as integer
 
 declare function cThreadCallFunc() as ASTNODE ptr
+
+declare function cYieldStmt( ) as integer
+
     
 ''
 '' macros

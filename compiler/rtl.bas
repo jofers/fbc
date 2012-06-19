@@ -151,6 +151,10 @@ sub rtlAddIntrinsicProcs _
 						attrib = FB_SYMBATTRIB_OPTIONAL
 
 						select case as const .dtype
+                        case FB_DATATYPE_ITER
+                            '' null pointer
+                            subtype = symbAddIter(FB_DATATYPE_VOID, NULL)
+                        
 						case FB_DATATYPE_STRING
 							'' only NULL can be used
 							param_optval = astNewCONSTstr( "" )
@@ -288,16 +292,21 @@ sub rtlAddIntrinsicProcs _
 				procdef->alias = pname
 			end if
 
-			'' ordinary proc?
+			dim as FBSYMBOL ptr subtype = NULL
+            if( procdef->dtype = FB_DATATYPE_ITER ) then
+                subtype = symbAddIter( FB_DATATYPE_VOID, NULL )
+            end if
+            
+            '' ordinary proc?
 			if( (procdef->options and FB_RTL_OPT_OPERATOR) = 0 ) then
 				proc = symbAddPrototype( proc, pname, procdef->alias, _
-				                         procdef->dtype, NULL, attrib, callconv, _
+				                         procdef->dtype, subtype, attrib, callconv, _
 				                         FB_SYMBOPT_DECLARING or FB_SYMBOPT_RTL )
 
 			'' operator..
 			else
 				proc = symbAddOperator( proc, cast(AST_OP, pname), NULL, _
-				                        procdef->dtype, NULL, attrib or FB_SYMBATTRIB_OPERATOR, callconv, _
+				                        procdef->dtype, subtype, attrib or FB_SYMBATTRIB_OPERATOR, callconv, _
 				                        FB_SYMBOPT_DECLARING or FB_SYMBOPT_RTL )
 
     			if( proc <> NULL ) then

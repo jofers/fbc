@@ -479,9 +479,10 @@ function astProcBegin _
 
 		'' alloc result local var
 		if( symbGetType( sym ) <> FB_DATATYPE_VOID ) then
-			if( symbAddProcResult( sym ) = NULL ) then
-				exit function
-			end if
+            '' iterator functions don't have a return variable
+            if( symbAddProcResult( sym ) = NULL ) then
+                exit function
+            end if
 		end if
 
 	end if

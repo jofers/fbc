@@ -1283,6 +1283,13 @@ declare function hTruncateInt _
 		byval dtype as integer, _
 		byval value as integer ptr _
 	) as integer
+    
+declare function astIterCheck _
+	( _
+		byval idtype as integer, _
+		byval isubtype as FBSYMBOL ptr, _
+		byval expr as ASTNODE ptr _
+	) as integer
 
 ''
 '' macros

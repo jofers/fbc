@@ -637,10 +637,10 @@ declare function 	hThreadCall_cb		( byval sym as FBSYMBOL ptr ) as integer
 	 			) _
 	 		} _
 	 	), _
-        /' fb_FiberIterCreate( byval as sub( param as any ptr ), byval as any ptr ) as any ptr '/ _
+        /' fb_FiberIterCreate( byval as sub( param as any ptr ), byval as any ptr ) as iterator '/ _
 		( _
 			@"fb_FiberIterCreate", NULL, _
-	 		typeAddrOf( FB_DATATYPE_VOID ), FB_USE_FUNCMODE_FBCALL, _
+	 		FB_DATATYPE_ITER, FB_USE_FUNCMODE_FBCALL, _
 	 		NULL, FB_RTL_OPT_NOQB, _
 	 		4, _
 	 		{ _
@@ -658,11 +658,11 @@ declare function 	hThreadCall_cb		( byval sym as FBSYMBOL ptr ) as integer
 	 			) _
 	 		} _
 	 	), _
-        /' fiberdestroy( byval as any ptr ) '/ _
+        /' fiberdestroy overload( byval as any ptr ) '/ _
 		( _
 			@"fiberdestroy", @"fb_FiberDestroy", _
 	 		FB_DATATYPE_VOID, FB_USE_FUNCMODE_FBCALL, _
-	 		NULL, FB_RTL_OPT_NOQB, _
+	 		NULL, FB_RTL_OPT_NOQB or FB_RTL_OPT_DUPDECL or FB_RTL_OPT_OVER, _
 	 		1, _
 	 		{ _
 	 			( _
@@ -670,15 +670,39 @@ declare function 	hThreadCall_cb		( byval sym as FBSYMBOL ptr ) as integer
 	 			) _
 	 		} _
 	 	), _
-        /' fiberswitch( byval as any ptr ) '/ _
+        /' fiberdestroy overload( byval as iterator ) '/ _
+		( _
+			@"fiberdestroy", @"fb_FiberDestroy", _
+	 		FB_DATATYPE_VOID, FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB or FB_RTL_OPT_DUPDECL or FB_RTL_OPT_OVER, _
+	 		1, _
+	 		{ _
+	 			( _
+	 				FB_DATATYPE_ITER, FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _
+        /' fiberswitch overload( byval as any ptr ) '/ _
 		( _
 			@"fiberswitch", @"fb_FiberSwitch", _
 	 		FB_DATATYPE_VOID, FB_USE_FUNCMODE_FBCALL, _
-	 		NULL, FB_RTL_OPT_NOQB, _
+	 		NULL, FB_RTL_OPT_NOQB or FB_RTL_OPT_DUPDECL or FB_RTL_OPT_OVER, _
 	 		1, _
 	 		{ _
 	 			( _
 	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _
+        /' fiberswitch overload( byval as iterator ) '/ _
+		( _
+			@"fiberswitch", @"fb_FiberSwitch", _
+	 		FB_DATATYPE_VOID, FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB or FB_RTL_OPT_DUPDECL or FB_RTL_OPT_OVER, _
+	 		1, _
+	 		{ _
+	 			( _
+	 				FB_DATATYPE_ITER, FB_PARAMMODE_BYVAL, TRUE, 0 _
 	 			) _
 	 		} _
 	 	), _
@@ -691,7 +715,7 @@ declare function 	hThreadCall_cb		( byval sym as FBSYMBOL ptr ) as integer
 	 	), _
         /' yield( byref as any ) '/ _
 		( _
-			@"yield", @"fb_FiberYield", _
+			@"fiberyield", @"fb_FiberYield", _
 	 		FB_DATATYPE_VOID, FB_USE_FUNCMODE_FBCALL, _
 	 		NULL, FB_RTL_OPT_NOQB, _
 	 		1, _
@@ -701,18 +725,30 @@ declare function 	hThreadCall_cb		( byval sym as FBSYMBOL ptr ) as integer
 	 			) _
 	 		} _
 	 	), _
-        /' fibergetyield( as any ptr ) as any ptr '/ _
+        /' fibergetyield overload( as any ptr ) as any ptr '/ _
  		( _
 			@"fibergetyield", @"fb_FiberGetYield", _
 	 		typeAddrOf( FB_DATATYPE_VOID ), FB_USE_FUNCMODE_FBCALL, _
-	 		NULL, FB_RTL_OPT_NOQB, _
+	 		NULL, FB_RTL_OPT_NOQB or FB_RTL_OPT_DUPDECL or FB_RTL_OPT_OVER, _
 	 		1, _
 	 		{ _
 	 			( _
 	 				typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, TRUE, 0 _
 	 			) _
 	 		} _
-	 	), _       
+	 	), _    
+        /' fibergetyield overload( as iterator ) as any ptr '/ _
+ 		( _
+			@"fibergetyield", @"fb_FiberGetYield", _
+	 		typeAddrOf( FB_DATATYPE_VOID ), FB_USE_FUNCMODE_FBCALL, _
+	 		NULL, FB_RTL_OPT_NOQB or FB_RTL_OPT_DUPDECL or FB_RTL_OPT_OVER, _
+	 		1, _
+	 		{ _
+	 			( _
+	 				FB_DATATYPE_ITER, FB_PARAMMODE_BYVAL, TRUE, 0 _
+	 			) _
+	 		} _
+	 	), _   
         /' EOL '/ _
 	 	( _
 	 		NULL _

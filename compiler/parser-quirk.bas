@@ -124,6 +124,9 @@ function cQuirkStmt _
 	case FB_TK_COLOR
 		CHECK_CODEMASK( )
 		res = cColorStmt( FALSE ) <> NULL
+        
+    case FB_TK_YIELD
+        res = cYieldStmt( )
 
 	case FB_TK_REM
 		'' due the QB quirks..
