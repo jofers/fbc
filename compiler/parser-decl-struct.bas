@@ -149,7 +149,7 @@ private function hTypeProtoDecl _
             errReport( FB_ERRMSG_SYNTAXERROR )
         end if
         lexSkipToken( )
-		cProcHeader( attrib, is_nested, FB_PROCOPT_ISPROTO or FB_PROCOPT_ISSUB )
+		cProcHeader( attrib, is_nested, FB_PROCOPT_ISPROTO )
 		function = TRUE
 
 

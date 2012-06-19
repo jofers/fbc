@@ -702,17 +702,6 @@ function cProcHeader _
     	else
     		proc = head_proc
     	end if
-        
-        if ( attrib and FB_SYMBATTRIB_ITERATOR ) then
-            '' build iterator helper functions here
-            dim as FBSYMBOL ptr proc_scatter, proc_funnel
-            proc_scatter = hBuildArgScatter( proc, is_nested )
-            proc_funnel = hBuildArgFunnel( proc, is_nested, iter_dtype, iter_subtype )
-            if( proc_scatter = NULL or proc_funnel = NULL ) then
-                function = FALSE
-                exit function
-            end if
-        end if
 
     '' another proc or proto defined already..
     else
@@ -746,9 +735,6 @@ function cProcHeader _
 					return CREATEFAKEID( proc )
     			end if
                 
-                hBuildArgFunnelDefinition( proc, FALSE, TRUE )
-                hBuildArgFunnelDefinition( proc, TRUE, TRUE, iter_dtype, iter_subtype )
-
     			proc = head_proc
     		end if
     	end if
@@ -790,7 +776,17 @@ function cProcHeader _
     elseif( (stats and FB_SYMBSTATS_GLOBALDTOR) <> 0 ) then
     	symbAddGlobalDtor( proc )
 		symbSetProcPriority( proc, priority )
-
+    end if
+    
+    if ( attrib and FB_SYMBATTRIB_ITERATOR ) then
+        '' build iterator helper functions here
+        dim as FBSYMBOL ptr proc_scatter, proc_funnel
+        proc_scatter = hBuildArgScatter( proc, is_nested )
+        proc_funnel = hBuildArgFunnel( proc, is_nested, iter_dtype, iter_subtype )
+        if( proc_scatter = NULL or proc_funnel = NULL ) then
+            function = FALSE
+            exit function
+        end if
     end if
 
     function = proc
