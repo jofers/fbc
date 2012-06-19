@@ -19,7 +19,7 @@ end type
 
 type FBWARNING
 	level		as integer
-	text		as zstring ptr
+	text		as const zstring ptr
 end type
 
 
@@ -38,7 +38,6 @@ end type
 		( 1, @"Literal number too big, truncated" ), _
 		( 1, @"Literal string too big, truncated" ), _
 		( 0, @"UDT with pointer or var-len string fields" ), _
-		( 0, @"UDT with var-len string fields" ), _
 		( 0, @"Implicit variable allocation" ), _
 		( 0, @"Missing closing quote in literal string" ), _
 		( 0, @"Function result was not explicitly set" ), _
@@ -65,7 +64,7 @@ end type
         ( 1, @"Suspicious iterator assignment" ) _
 	}
 
-	dim shared errorMsgs( 1 to FB_ERRMSGS-1 ) as zstring ptr => _
+	dim shared errorMsgs( 1 to FB_ERRMSGS-1 ) as const zstring ptr => _
 	{ _
 		@"Argument count mismatch", _
 		@"Expected End-of-File", _
@@ -220,13 +219,22 @@ end type
 		@"Illegal outside a DESTRUCTOR block", _
 		@"UDT's with methods must have unique names", _
 		@"Parent is not a class or UDT", _
-		@"Call to another constructor or a base class constructor must be the first statement", _
-		@"The constructor or destructor calling convention must be CDECL", _
+		@"CONSTRUCTOR() chain call not at top of constructor", _
+		@"BASE() initializer not at top of constructor", _
+		@"REDIM on UDT with non-CDECL constructor", _
+		@"REDIM on UDT with non-CDECL destructor", _
+		@"REDIM on UDT with non-parameterless default constructor", _
+		@"ERASE on UDT with non-CDECL constructor", _
+		@"ERASE on UDT with non-CDECL destructor", _
+		@"ERASE on UDT with non-parameterless default constructor", _
 		@"This symbol cannot be undefined", _
 		@"Either 'RETURN' or 'FUNCTION =' should be used when returning objects with default constructors", _
 		@"Invalid assignment/conversion", _
 		@"Invalid array subscript", _
 		@"TYPE or CLASS has no default constructor", _
+		@"Base UDT without default constructor; missing BASE() initializer", _
+		@"Base UDT without default constructor; missing default constructor implementation in derived UDT", _
+		@"Base UDT without default constructor; missing copy constructor implementation in derived UDT", _
 		@"Invalid priority attribute", _
 		@"PROPERTY GET should have no parameter, or just one if indexed", _
 		@"PROPERTY SET should have one parameter, or just two if indexed", _
@@ -245,6 +253,8 @@ end type
 		@"The default constructor has no public access", _
 		@"Constructor has no public access", _
 		@"Destructor has no public access", _
+		@"Accessing base UDT's private default constructor", _
+		@"Accessing base UDT's private destructor", _
 		@"Illegal non-static member access", _
 		@"Member cannot be static", _
 		@"Member isn't static", _
@@ -349,14 +359,14 @@ end function
 private sub hPrintErrMsg _
 	( _
 		byval errnum as integer, _
-		byval msgex as zstring ptr, _
+		byval msgex as const zstring ptr, _
 		byval options as FB_ERRMSGOPT, _
 		byval linenum as integer, _
 		byval showerror as integer = TRUE, _
-		byval customText as zstring ptr = 0 _
+		byval customText as const zstring ptr = 0 _
 	) static
 
-    dim as zstring ptr msg
+    dim as const zstring ptr msg
     dim as string token_pos
 
 	if( (errnum < 1) or (errnum >= FB_ERRMSGS) ) then
@@ -434,10 +444,10 @@ end sub
 sub errReportEx _
 	( _
 		byval errnum as integer, _
-		byval msgex as zstring ptr, _
+		byval msgex as const zstring ptr, _
 		byval linenum as integer, _
 		byval options as FB_ERRMSGOPT, _
-		byval customText as zstring ptr _
+		byval customText as const zstring ptr _
 	)
 
 	'' Don't show if already too many errors displayed
@@ -516,7 +526,7 @@ sub errReport _
 	( _
 		byval errnum as integer, _
 		byval isbefore as integer = FALSE, _
-		byval customText as zstring ptr _
+		byval customText as const zstring ptr _
 	)
 
 	errReportEx( errnum, hAddToken( isbefore, FALSE ), , , customText )
@@ -527,7 +537,7 @@ end sub
 sub errReportWarnEx _
 	( _
 		byval msgnum as integer, _
-		byval msgex as zstring ptr, _
+		byval msgex as const zstring ptr, _
 		byval linenum as integer, _
 		byval options as FB_ERRMSGOPT _
 	)
@@ -586,7 +596,7 @@ end sub
 sub errReportWarn _
 	( _
 		byval msgnum as integer, _
-		byval msgex as zstring ptr, _
+		byval msgex as const zstring ptr, _
 		byval options as FB_ERRMSGOPT _
 	)
 

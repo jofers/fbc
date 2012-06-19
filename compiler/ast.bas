@@ -15,253 +15,57 @@
 #include once "ir.bi"
 #include once "ast.bi"
 
-declare sub astProcListInit _
-	( _
-	)
-
-declare sub astProcListEnd _
-	( _
-	)
-
-declare sub astCallInit _
-	( _
-	)
-
-declare sub astCallEnd _
-	( _
-	)
-
-declare sub astMiscInit _
-	( _
-	)
-
-declare sub astMiscEnd _
-	( _
-	)
-
-declare sub astDataStmtInit _
-	( _
-	)
-
-declare function astLoadNOP _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadASSIGN _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadCONV _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadBOP _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadUOP _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadCONST _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadVAR _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadIDX _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadDEREF _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadCALL _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadCALLCTOR _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadADDROF _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadLOAD _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadBRANCH _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-/'
-declare function astLoadIIF _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-'/
-
-declare function astLoadOFFSET _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadLINK _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadSTACK _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadLABEL _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadLIT _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadASM _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadJMPTB _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadDBG _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadMEM _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadBOUNDCHK _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadPTRCHK _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadFIELD _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadSCOPEBEGIN _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadSCOPEEND _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadDECL _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare function astLoadNIDXARRAY _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-declare sub astCloneCALL _
-	( _
-		byval n as ASTNODE ptr, _
-		byval c as ASTNODE ptr _
-	)
-
-declare sub astDelCALL _
-	( _
-		byval n as ASTNODE ptr _
-	)
-
-
 dim shared as ASTCTX ast
 
-	'' same order as AST_NODECLASS
-	dim shared ast_classTB( 0 to AST_CLASSES-1 ) as AST_CLASSINFO => _
-	{ _
-		( @astLoadNOP           , FALSE ), _    '' AST_NODECLASS_NOP
-		( @astLoadLOAD          , TRUE  ), _    '' AST_NODECLASS_LOAD
-		( @astLoadASSIGN        , TRUE  ), _    '' AST_NODECLASS_ASSIGN
-		( @astLoadBOP           , TRUE  ), _    '' AST_NODECLASS_BOP
-		( @astLoadUOP           , TRUE  ), _    '' AST_NODECLASS_UOP
-		( @astLoadCONV          , TRUE  ), _    '' AST_NODECLASS_CONV
-		( @astLoadADDROF        , TRUE  ), _    '' AST_NODECLASS_ADDROF
-		( @astLoadBRANCH        , TRUE  ), _    '' AST_NODECLASS_BRANCH
-		( @astLoadCALL          , TRUE  ), _    '' AST_NODECLASS_CALL
-		( @astLoadCALLCTOR      , TRUE  ), _    '' AST_NODECLASS_CALLCTOR
-		( @astLoadSTACK         , TRUE  ), _    '' AST_NODECLASS_STACK
-		( @astLoadMEM           , TRUE  ), _    '' AST_NODECLASS_MEM
-		( @astLoadNOP           , FALSE ), _    '' AST_NODECLASS_COMP
-		( @astLoadLINK          , TRUE  ), _    '' AST_NODECLASS_LINK
-		( @astLoadCONST         , FALSE ), _    '' AST_NODECLASS_CONST
-		( @astLoadVAR           , TRUE  ), _    '' AST_NODECLASS_VAR
-		( @astLoadIDX           , TRUE  ), _    '' AST_NODECLASS_IDX
-		( @astLoadFIELD         , TRUE  ), _    '' AST_NODECLASS_FIELD
-		( @astLoadDEREF         , TRUE  ), _    '' AST_NODECLASS_DEREF
-		( @astLoadLABEL         , FALSE ), _    '' AST_NODECLASS_LABEL
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_ARG
-		( @astLoadOFFSET        , FALSE ), _    '' AST_NODECLASS_OFFSET
-		( @astLoadDECL          , FALSE ), _    '' AST_NODECLASS_DECL
-		( @astLoadNIDXARRAY     , TRUE  ), _    '' AST_NODECLASS_NIDXARRAY
-		( @astLoadIIF           , TRUE  ), _    '' AST_NODECLASS_IIF
-		( @astLoadLIT           , FALSE ), _    '' AST_NODECLASS_LIT
-		( @astLoadASM           , TRUE  ), _    '' AST_NODECLASS_ASM
-		( @astLoadJMPTB         , TRUE  ), _    '' AST_NODECLASS_JMPTB
-		( @astLoadNOP           , FALSE ), _    '' AST_NODECLASS_DATASTMT
-		( @astLoadDBG           , FALSE ), _    '' AST_NODECLASS_DBG
-		( @astLoadBOUNDCHK      , TRUE  ), _    '' AST_NODECLASS_BOUNDCHK
-		( @astLoadPTRCHK        , TRUE  ), _    '' AST_NODECLASS_PTRCHK
-		( @astLoadSCOPEBEGIN    , TRUE  ), _    '' AST_NODECLASS_SCOPEBEGIN
-		( @astLoadSCOPEEND      , TRUE  ), _    '' AST_NODECLASS_SCOPEEND
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_SCOPE_BREAK
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_TYPEINI
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_TYPEINI_PAD
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_TYPEINI_ASSIGN
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_TYPEINI_CTORCALL
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_TYPEINI_CTORLIST
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_TYPEINI_SCOPEINI
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_TYPEINI_SCOPEEND
-		( @astLoadNOP           , TRUE  ), _    '' AST_NODECLASS_TYPEINI_SEPARATOR
-		( @astLoadNOP           , TRUE  )  _    '' AST_NODECLASS_PROC
-	}
+type AST_LOADCALLBACK as function( byval n as ASTNODE ptr ) as IRVREG ptr
+
+'' same order as AST_NODECLASS
+dim shared as AST_LOADCALLBACK ast_loadcallbacks( 0 to AST_CLASSES-1 ) => _
+{ _
+	@astLoadNOP           , _    '' AST_NODECLASS_NOP
+	@astLoadLOAD          , _    '' AST_NODECLASS_LOAD
+	@astLoadASSIGN        , _    '' AST_NODECLASS_ASSIGN
+	@astLoadBOP           , _    '' AST_NODECLASS_BOP
+	@astLoadUOP           , _    '' AST_NODECLASS_UOP
+	@astLoadCONV          , _    '' AST_NODECLASS_CONV
+	@astLoadADDROF        , _    '' AST_NODECLASS_ADDROF
+	@astLoadBRANCH        , _    '' AST_NODECLASS_BRANCH
+	@astLoadCALL          , _    '' AST_NODECLASS_CALL
+	@astLoadCALLCTOR      , _    '' AST_NODECLASS_CALLCTOR
+	@astLoadSTACK         , _    '' AST_NODECLASS_STACK
+	@astLoadMEM           , _    '' AST_NODECLASS_MEM
+	@astLoadNOP           , _    '' AST_NODECLASS_COMP
+	@astLoadLINK          , _    '' AST_NODECLASS_LINK
+	@astLoadCONST         , _    '' AST_NODECLASS_CONST
+	@astLoadVAR           , _    '' AST_NODECLASS_VAR
+	@astLoadIDX           , _    '' AST_NODECLASS_IDX
+	@astLoadNOP           , _    '' AST_NODECLASS_FIELD
+	@astLoadDEREF         , _    '' AST_NODECLASS_DEREF
+	@astLoadLABEL         , _    '' AST_NODECLASS_LABEL
+	@astLoadNOP           , _    '' AST_NODECLASS_ARG
+	@astLoadOFFSET        , _    '' AST_NODECLASS_OFFSET
+	@astLoadDECL          , _    '' AST_NODECLASS_DECL
+	@astLoadNIDXARRAY     , _    '' AST_NODECLASS_NIDXARRAY
+	@astLoadIIF           , _    '' AST_NODECLASS_IIF
+	@astLoadLIT           , _    '' AST_NODECLASS_LIT
+	@astLoadASM           , _    '' AST_NODECLASS_ASM
+	@astLoadJMPTB         , _    '' AST_NODECLASS_JMPTB
+	@astLoadNOP           , _    '' AST_NODECLASS_DATASTMT
+	@astLoadDBG           , _    '' AST_NODECLASS_DBG
+	@astLoadBOUNDCHK      , _    '' AST_NODECLASS_BOUNDCHK
+	@astLoadPTRCHK        , _    '' AST_NODECLASS_PTRCHK
+	@astLoadSCOPEBEGIN    , _    '' AST_NODECLASS_SCOPEBEGIN
+	@astLoadSCOPEEND      , _    '' AST_NODECLASS_SCOPEEND
+	@astLoadNOP           , _    '' AST_NODECLASS_SCOPE_BREAK
+	@astLoadNOP           , _    '' AST_NODECLASS_TYPEINI
+	@astLoadNOP           , _    '' AST_NODECLASS_TYPEINI_PAD
+	@astLoadNOP           , _    '' AST_NODECLASS_TYPEINI_ASSIGN
+	@astLoadNOP           , _    '' AST_NODECLASS_TYPEINI_CTORCALL
+	@astLoadNOP           , _    '' AST_NODECLASS_TYPEINI_CTORLIST
+	@astLoadNOP           , _    '' AST_NODECLASS_TYPEINI_SCOPEINI
+	@astLoadNOP           , _    '' AST_NODECLASS_TYPEINI_SCOPEEND
+	@astLoadNOP             _    '' AST_NODECLASS_PROC
+}
 
 '' same order as AST_OP
 dim shared ast_opTB( 0 to AST_OPCODES-1 ) as AST_OPINFO => _
@@ -389,41 +193,25 @@ dim shared as uinteger ast_bitmaskTB( 0 to ... ) = _
 	33554431, 67108863, 134217727, 268435455, 536870911, 1073741823, 2147483647, 4294967295 _
 }
 
-'':::::
-sub astInit static
-
-	''
+sub astInit( )
     listInit( @ast.astTB, AST_INITNODES, len( ASTNODE ), LIST_FLAGS_NOCLEAR )
 
-    ''
     ast.doemit = TRUE
     ast.typeinicnt = 0
     ast.currblock = NULL
 
-    ''
     astCallInit( )
-
     astProcListInit( )
-
     astDataStmtInit( )
-
     astMiscInit( )
-
 end sub
 
-'':::::
-sub astEnd static
-
-	''
+sub astEnd( )
 	astMiscEnd( )
-
 	astProcListEnd( )
-
     astCallEnd( )
 
-	''
 	listEnd( @ast.astTB )
-
 end sub
 
 '':::::
@@ -618,17 +406,8 @@ function astGetInverseLogOp _
 
 end function
 
-''::::
-function astLoad _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
-	if( n = NULL ) then
-		return NULL
+function astLoad( byval n as ASTNODE ptr ) as IRVREG ptr
+	if( n ) then
+		function = ast_loadcallbacks(n->class)( n )
 	end if
-
-	function = astGetClassLoadCB( n->class )( n )
-
 end function
-

@@ -635,10 +635,7 @@ type FBOPTION
 end type
 
 type FBMAIN
-	node			as ASTNODE ptr
 	proc			as FBSYMBOL ptr
-	argc			as FBSYMBOL ptr
-	argv			as FBSYMBOL ptr
 	initnode		as ASTNODE ptr
 end type
 

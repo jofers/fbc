@@ -347,6 +347,12 @@ endif
 ifdef DISABLE_X
   ALLCFLAGS += -DDISABLE_X
 endif
+ifdef DISABLE_GPM
+  ALLCFLAGS += -DDISABLE_GPM
+endif
+ifdef DISABLE_FFI
+  ALLCFLAGS += -DDISABLE_FFI
+endif
 
 ifdef FBCFLAGS
   ALLFBCFLAGS += $(FBCFLAGS)
@@ -400,9 +406,9 @@ FBC_BAS := \
   ast ast-gosub ast-helper ast-misc \
   ast-node-addr ast-node-arg ast-node-assign ast-node-bop ast-node-branch \
   ast-node-call ast-node-check ast-node-const ast-node-conv ast-node-data \
-  ast-node-decl ast-node-field ast-node-idx ast-node-iif \
-  ast-node-link ast-node-load ast-node-mem ast-node-misc \
-  ast-node-proc ast-node-ptr ast-node-scope ast-node-stack ast-node-typeini \
+  ast-node-decl ast-node-idx ast-node-iif \
+  ast-node-mem ast-node-misc \
+  ast-node-proc ast-node-ptr ast-node-scope ast-node-typeini \
   ast-node-uop ast-node-var ast-optimize ast-vectorize \
   dstr edbg_stab emit emit_SSE emit_x86 error fb fb-main \
   fbc flist hash hlp hlp-str ir ir-hlc ir-tac lex lex-utf list \
@@ -426,7 +432,7 @@ FBC_BAS := \
   rtl rtl-array rtl-console rtl-data rtl-error rtl-file rtl-gfx rtl-gosub \
   rtl-macro rtl-math rtl-mem rtl-oop rtl-print rtl-profile rtl-string \
   rtl-system rtl-system-thread \
-  stack symb symb-bitfield symb-comp symb-const symb-data symb-define \
+  stack symb symb-comp symb-const symb-data symb-define \
   symb-enum symb-keyword symb-label symb-mangling symb-namespace \
   symb-proc symb-scope symb-struct symb-typedef symb-var
 
@@ -697,7 +703,7 @@ HEADER_DIRS := $(patsubst %/,%,$(sort $(dir $(HEADER_FILES))))
 # rtlib sources
 #
 
-LIBFB_H += rtlib/con_print_raw_uni.h
+LIBFB_H := rtlib/con_print_raw_uni.h
 LIBFB_H += rtlib/con_print_tty_uni.h
 LIBFB_H += rtlib/fb.h
 LIBFB_H += rtlib/fb_array.h
@@ -711,7 +717,7 @@ LIBFB_H += rtlib/fb_hook.h
 LIBFB_H += rtlib/fb_math.h
 LIBFB_H += rtlib/fb_print.h
 LIBFB_H += rtlib/fb_printer.h
-LIBFB_H := rtlib/fb_private_console.h
+LIBFB_H += rtlib/fb_private_console.h
 LIBFB_H += rtlib/fb_private_hdynload.h
 LIBFB_H += rtlib/fb_private_intl.h
 LIBFB_H += rtlib/fb_private_thread.h
@@ -790,24 +796,34 @@ LIBFB_C := \
   qb_file_open qb_inkey qb_sleep qb_str_convto qb_str_convto_flt \
   qb_str_convto_lng \
   signals \
-  str_asc str_assign str_base str_bin str_bin_lng str_chr str_comp \
+  str_asc str_assign str_base \
+  str_bin str_bin_lng str_bin_ptr \
+  str_chr str_comp \
   str_concatassign str_concat str_convfrom str_convfrom_int str_convfrom_lng \
   str_convfrom_rad str_convfrom_radlng str_convfrom_uint str_convfrom_ulng \
   str_convto str_convto_flt str_convto_lng str_core str_cvmk str_del str_fill \
-  str_format str_ftoa str_hex str_hex_lng str_instrany str_instr \
+  str_format str_ftoa \
+  str_hex str_hex_lng str_hex_ptr \
+  str_hskip str_instrany str_instr \
   str_instrrevany str_instrrev str_lcase str_left str_len str_ltrimany \
-  str_ltrim str_ltrimex str_midassign str_mid str_misc str_oct str_oct_lng \
+  str_ltrim str_ltrimex str_midassign str_mid str_misc \
+  str_oct str_oct_lng str_oct_ptr \
   str_right str_rtrimany str_rtrim str_rtrimex str_set str_tempdescf \
   str_tempdescv str_tempdescz str_tempres str_trimany str_trim str_trimex \
   str_ucase \
-  strw_alloc strw_asc strw_assign strw_bin strw_bin_lng strw_chr strw_comp \
+  strw_alloc strw_asc strw_assign \
+  strw_bin strw_bin_lng strw_bin_ptr \
+  strw_chr strw_comp \
   strw_concatassign strw_concat strw_convassign strw_convconcat strw_convfrom \
   strw_convfrom_int strw_convfrom_lng strw_convfrom_rad strw_convfrom_radlng \
   strw_convfrom_str strw_convfrom_uint strw_convfrom_ulng strw_convto \
   strw_convto_flt strw_convto_lng strw_convto_str strw_del strw_fill strw_ftoa \
-  strw_hex strw_hex_lng strw_instrany strw_instr strw_instrrevany \
+  strw_hex strw_hex_lng strw_hex_ptr \
+  strw_instrany strw_instr strw_instrrevany \
   strw_instrrev strw_lcase strw_left strw_len strw_ltrimany strw_ltrim \
-  strw_ltrimex strw_midassign strw_mid strw_oct strw_oct_lng strw_right \
+  strw_ltrimex strw_midassign strw_mid \
+  strw_oct strw_oct_lng strw_oct_ptr \
+  strw_right \
   strw_rtrimany strw_rtrim strw_rtrimex strw_set strw_space strw_trimany \
   strw_trim strw_trimex strw_ucase \
   swap_mem swap_str swap_wstr \
@@ -1009,79 +1025,77 @@ endif
 # gfxlib sources
 #
 
-ifndef DISABLE_GFX
-  LIBFBGFX_H := $(LIBFB_H)
-  LIBFBGFX_H += gfxlib2/fb_gfx_gl.h
-  LIBFBGFX_H += gfxlib2/fb_gfx.h
-  LIBFBGFX_H += gfxlib2/fb_gfx_lzw.h
-  LIBFBGFX_H += gfxlib2/gfxdata/inline.h
+LIBFBGFX_H := $(LIBFB_H)
+LIBFBGFX_H += gfxlib2/fb_gfx_gl.h
+LIBFBGFX_H += gfxlib2/fb_gfx.h
+LIBFBGFX_H += gfxlib2/fb_gfx_lzw.h
+LIBFBGFX_H += gfxlib2/gfxdata/inline.h
 
+LIBFBGFX_C += \
+  access blitter bload box bsave circle cls color control core data draw \
+  drawstring driver_null event get getmouse image image_convert image_info \
+  inkey line lineinp lineinp_wstr lzw lzw_enc multikey page paint palette \
+  paletteget pmap point print print_wstr pset put_add put_alpha put_and \
+  put_blend put put_custom put_or put_preset put_pset put_trans put_xor \
+  readstr readxy screen screeninfo screenlist setmouse sleep softcursor \
+  stick vars vgaemu view vsync width window
+
+ifndef DISABLE_OPENGL
+  LIBFBGFX_C += opengl
+endif
+
+LIBFBGFX_S :=
+
+ifeq ($(TARGET_OS),dos)
+  LIBFBGFX_H += gfxlib2/fb_gfx_dos.h
+  LIBFBGFX_H += gfxlib2/vesa.h
+  LIBFBGFX_H += gfxlib2/vga.h
   LIBFBGFX_C += \
-    access blitter bload box bsave circle cls color control core data draw \
-    drawstring driver_null event get getmouse image image_convert image_info \
-    inkey line lineinp lineinp_wstr lzw lzw_enc multikey page paint palette \
-    paletteget pmap point print print_wstr pset put_add put_alpha put_and \
-    put_blend put put_custom put_or put_preset put_pset put_trans put_xor \
-    readstr readxy screen screeninfo screenlist setmouse sleep softcursor \
-    stick vars vgaemu view vsync width window
+    dos driver_bios_dos driver_modex_dos driver_vesa_bnk_dos \
+    driver_vesa_lin_dos driver_vga_dos joystick_dos vesa_core_dos
+  LIBFBGFX_S += mouse_dos vesa_dos
+endif
 
-  ifndef DISABLE_OPENGL
-    LIBFBGFX_C += opengl
-  endif
+ifeq ($(TARGET_OS),freebsd)
+  LIBFBGFX_C += freebsd joystick_freebsd
+endif
 
-  LIBFBGFX_S :=
+ifeq ($(TARGET_OS),linux)
+  LIBFBGFX_H += gfxlib2/fb_gfx_linux.h
+  LIBFBGFX_C += driver_fbdev_linux joystick_linux linux
+endif
 
-  ifeq ($(TARGET_OS),dos)
-    LIBFBGFX_H += gfxlib2/fb_gfx_dos.h
-    LIBFBGFX_H += gfxlib2/vesa.h
-    LIBFBGFX_H += gfxlib2/vga.h
-    LIBFBGFX_C += \
-      dos driver_bios_dos driver_modex_dos driver_vesa_bnk_dos \
-      driver_vesa_lin_dos driver_vga_dos joystick_dos vesa_core_dos
-    LIBFBGFX_S += mouse_dos vesa_dos
-  endif
+ifeq ($(TARGET_OS),openbsd)
+  LIBFBGFX_C += joystick_openbsd openbsd
+endif
 
-  ifeq ($(TARGET_OS),freebsd)
-    LIBFBGFX_C += freebsd joystick_freebsd
-  endif
+ifeq ($(TARGET_OS),xbox)
+  LIBFBGFX_C += driver_xbox
+endif
 
-  ifeq ($(TARGET_OS),linux)
-    LIBFBGFX_H += gfxlib2/fb_gfx_linux.h
-    LIBFBGFX_C += driver_fbdev_linux joystick_linux linux
-  endif
-
-  ifeq ($(TARGET_OS),openbsd)
-    LIBFBGFX_C += joystick_openbsd openbsd
-  endif
-
-  ifeq ($(TARGET_OS),xbox)
-    LIBFBGFX_C += driver_xbox
-  endif
-
-  ifneq ($(filter darwin freebsd linux netbsd openbsd solaris,$(TARGET_OS)),)
-    ifndef DISABLE_X
-      LIBFBGFX_H += gfxlib2/fb_gfx_x11.h
-      LIBFBGFX_C += driver_x11 x11 x11_icon_stub
-      ifndef DISABLE_OPENGL
-        LIBFBGFX_C += driver_opengl_x11
-      endif
-    endif
-  endif
-
-  ifneq ($(filter cygwin win32,$(TARGET_OS)),)
-    LIBFBGFX_H += gfxlib2/fb_gfx_win32.h
-    LIBFBGFX_C += driver_ddraw_win32 driver_gdi_win32 joystick_win32 win32
+ifneq ($(filter darwin freebsd linux netbsd openbsd solaris,$(TARGET_OS)),)
+  ifndef DISABLE_X
+    LIBFBGFX_H += gfxlib2/fb_gfx_x11.h
+    LIBFBGFX_C += driver_x11 x11 x11_icon_stub
     ifndef DISABLE_OPENGL
-      LIBFBGFX_C += driver_opengl_win32
+      LIBFBGFX_C += driver_opengl_x11
     endif
   endif
+endif
 
-  ifneq ($(filter 386 486 586 686,$(TARGET_ARCH)),)
-    LIBFBGFX_H += gfxlib2/fb_gfx_mmx.h
-    LIBFBGFX_S += \
-      blitter_mmx mmx put_add_mmx put_alpha_mmx put_and_mmx put_blend_mmx \
-      put_or_mmx put_preset_mmx put_pset_mmx put_trans_mmx put_xor_mmx
+ifneq ($(filter cygwin win32,$(TARGET_OS)),)
+  LIBFBGFX_H += gfxlib2/fb_gfx_win32.h
+  LIBFBGFX_C += driver_ddraw_win32 driver_gdi_win32 joystick_win32 win32
+  ifndef DISABLE_OPENGL
+    LIBFBGFX_C += driver_opengl_win32
   endif
+endif
+
+ifneq ($(filter 386 486 586 686,$(TARGET_ARCH)),)
+  LIBFBGFX_H += gfxlib2/fb_gfx_mmx.h
+  LIBFBGFX_S += \
+    blitter_mmx mmx put_add_mmx put_alpha_mmx put_and_mmx put_blend_mmx \
+    put_or_mmx put_preset_mmx put_pset_mmx put_trans_mmx put_xor_mmx
 endif
 
 LIBFBGFX_C := $(patsubst %,$(newlibfbgfx)/%.o,$(LIBFBGFX_C))
@@ -1161,7 +1175,7 @@ $(newlib)/fbrt0.o: rtlib/fbrt0.c $(LIBFB_H)
 	$(QUIET_CC)$(CC) $(ALLCFLAGS) -c $< -o $@
 
 $(newlib)/libfb.a: $(LIBFB_C) $(LIBFB_S)
-	$(QUIET_AR)$(AR) rcs $@ $^
+	$(QUIET_AR)rm -f $@; $(AR) rcs $@ $^
 
 $(LIBFB_C): $(newlibfb)/%.o: rtlib/%.c $(LIBFB_H)
 	$(QUIET_CC)$(CC) $(ALLCFLAGS) -c $< -o $@
@@ -1170,7 +1184,7 @@ $(LIBFB_S): $(newlibfb)/%.o: rtlib/%.s $(LIBFB_H)
 	$(QUIET_CPPAS)$(CC) -x assembler-with-cpp $(ALLCFLAGS) -c $< -o $@
 
 $(newlib)/libfbmt.a: $(LIBFBMT_C) $(LIBFBMT_S)
-	$(QUIET_AR)$(AR) rcs $@ $^
+	$(QUIET_AR)rm -f $@; $(AR) rcs $@ $^
 
 $(LIBFBMT_C): $(newlibfbmt)/%.o: rtlib/%.c $(LIBFB_H)
 	$(QUIET_CC)$(CC) -DENABLE_MT $(ALLCFLAGS) -c $< -o $@
@@ -1180,17 +1194,15 @@ $(LIBFBMT_S): $(newlibfbmt)/%.o: rtlib/%.s $(LIBFB_H)
 
 .PHONY: gfxlib2
 gfxlib2:
-ifndef DISABLE_GFX
 gfxlib2: $(new) $(newlibfb)
 ifndef ENABLE_STANDALONE
 gfxlib2: $(new)/lib
 endif
 gfxlib2: $(newlib)
 gfxlib2: $(newlibfbgfx) $(newlib)/libfbgfx.a
-endif
 
 $(newlib)/libfbgfx.a: $(LIBFBGFX_C) $(LIBFBGFX_S)
-	$(QUIET_AR)$(AR) rcs $@ $^
+	$(QUIET_AR)rm -f $@; $(AR) rcs $@ $^
 
 $(LIBFBGFX_C): $(newlibfbgfx)/%.o: gfxlib2/%.c $(LIBFBGFX_H)
 	$(QUIET_CC)$(CC) $(ALLCFLAGS) -c $< -o $@
@@ -1222,9 +1234,7 @@ install-rtlib: $(prefixlib)
   endif
 
 install-gfxlib2: $(prefixlib)
-  ifndef DISABLE_GFX
 	$(INSTALL_FILE) $(newlib)/libfbgfx.a $(prefixlib)/
-  endif
 
 .PHONY: uninstall uninstall-compiler uninstall-headers uninstall-rtlib uninstall-gfxlib2
 uninstall: uninstall-compiler uninstall-headers uninstall-rtlib uninstall-gfxlib2
@@ -1254,9 +1264,7 @@ uninstall-rtlib:
   endif
 
 uninstall-gfxlib2:
-  ifndef DISABLE_GFX
 	rm -f $(prefixlib)/libfbgfx.a
-  endif
 
 .PHONY: clean clean-compiler clean-headers clean-rtlib clean-gfxlib2
 clean: clean-compiler clean-headers clean-rtlib clean-gfxlib2
@@ -1291,10 +1299,8 @@ clean-rtlib:
   endif
 
 clean-gfxlib2:
-  ifndef DISABLE_GFX
 	rm -f $(newlib)/libfbgfx.a $(newlibfbgfx)/*.o
 	-rmdir $(newlibfbgfx)
-  endif
 
 ################################################################################
 # 'make release'
@@ -1377,27 +1383,22 @@ help:
 	@echo "  uninstall[-component]      remove from prefix"
 	@echo "  release                    build a release package"
 	@echo "Variables, use them to..."
-	@echo "  FB[C|L]FLAGS  add '-exx' or similar (affects the compiler only)"
-	@echo "  CFLAGS   override the default '-O2' (affects the runtime only)"
-	@echo "  new      use another build directory (default: 'new')"
-	@echo "  prefix   install in a specific place (default: '/usr/local')"
-	@echo "  TARGET   cross-compile compiler and runtime to run on TARGET"
-	@echo "  SUFFIX   append a string (e.g. '-0.23') to fbc and FB directory names"
-	@echo "  SUFFIX2  append a second string (e.g. '-test') only to the fbc executable"
-	@echo "  FBC, CC, AR  use specific tools (system triplets may be prefixed to CC/AR)"
-	@echo "  V        to get to see verbose command lines used by make"
-	@echo "FreeBASIC configuration options, use them to..."
-	@echo "  ENABLE_STANDALONE  use a simpler directory layout with fbc at toplevel"
-	@echo "                     (for self-contained installations)"
+	@echo "  FB[C|L]FLAGS, CFLAGS  set -g, -exx, etc."
+	@echo "  new      specify a build directory other than 'new'"
+	@echo "  prefix   set the installation directory, default: /usr/local"
+	@echo "  TARGET   cross-compile for this target"
+	@echo "  SUFFIX   append a string like '-0.23' to fbc and FB directory names"
+	@echo "  SUFFIX2  append a second string like '-test' only to the fbc executable"
+	@echo "  FBC, CC, AR  set specific tools (TARGET may be prefixed to CC/AR)"
+	@echo "  V        to see command lines"
+	@echo "Configuration options, use them to..."
+	@echo "  ENABLE_STANDALONE build FB for a self-contained installation"
 	@echo "  ENABLE_PREFIX     hard-code the prefix into fbc (no longer relocatable)"
-	@echo "  ENABLE_FBBFD=217  use the FB headers for this exact libbfd version,"
-	@echo "                    instead of using the system's bfd.h through a C wrapper"
-	@echo "  DISABLE_OBJINFO   Leave out fbc's objinfo feature and don't use libbfd at all"
-	@echo "  ENABLE_TDMGCC     Build FB to work with TDM-GCC (affects win32 target only)"
-	@echo "  DISABLE_MT        Don't build libfbmt (auto-defined for DOS runtime)"
-	@echo "  DISABLE_GFX       Don't build libfbgfx (useful when cross-compiling,"
-	@echo "                    or when the target system isn't yet supported by libfbgfx)"
-	@echo "  DISABLE_OPENGL    Don't use OpenGL in libfbgfx (Unix/Windows versions)"
-	@echo "  DISABLE_X         Don't use X in libfbgfx (Unix version)"
-	@echo "This makefile #includes config.mk and new/config.mk, allowing you to use them"
-	@echo "to set variables in a more permanent and even build-directory specific way."
+	@echo "  ENABLE_FBBFD=217  use bfd.bi instead of bfd.h wrapper (version must match)"
+	@echo "  DISABLE_OBJINFO   build without libbfd (disables fbc's objinfo feature)"
+	@echo "  ENABLE_TDMGCC     build fbc for TDM-GCC (affects win32 target only)"
+	@echo "  DISABLE_OPENGL    build without GL headers (disables GL gfx driver)"
+	@echo "  DISABLE_X         build without X11 headers (disables X11 gfx driver)"
+	@echo "  DISABLE_GPM       build without gpm.h (disables Linux GetMouse)"
+	@echo "  DISABLE_FFI       build without ffi.h (disables ThreadCall)"
+	@echo "Options can also be set in a 'config.mk' and/or 'new/config.mk' file."

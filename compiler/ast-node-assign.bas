@@ -630,7 +630,7 @@ function astNewASSIGN _
 			if( irGetOption( IR_OPT_HIGHLEVEL ) = FALSE ) then
 				if( (ldclass = FB_DATACLASS_FPOINT) or (rdclass = FB_DATACLASS_FPOINT) ) then
 					if( ldtype <> FB_DATATYPE_ULONGINT ) then
-						doconv = irGetOption( IR_OPT_FPU_CONVERTOPER )
+						doconv = irGetOption( IR_OPT_FPUCONV )
 					end if
 				end if
 			end if
@@ -664,12 +664,7 @@ function astNewASSIGN _
 
 end function
 
-'':::::
-function astLoadASSIGN _
-	( _
-		byval n as ASTNODE ptr _
-	) as IRVREG ptr
-
+function astLoadASSIGN( byval n as ASTNODE ptr ) as IRVREG ptr
     dim as ASTNODE ptr l = any, r = any
     dim as IRVREG ptr vs = any, vr = any
 
@@ -678,9 +673,6 @@ function astLoadASSIGN _
 	if( (l = NULL) or (r = NULL) ) then
 		return NULL
 	end if
-
-	'' handle bitfields..
-	astUpdateBitfieldAssignment( l, r )
 
 	vs = astLoad( r )
 	vr = astLoad( l )
@@ -693,7 +685,4 @@ function astLoadASSIGN _
 	astDelNode( r )
 
 	function = vr
-
 end function
-
-

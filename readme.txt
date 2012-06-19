@@ -128,7 +128,7 @@
     - Abdullah Ali (voodooattack[at]hotmail.com)
         Windows NT DDK headers & examples
     - AGS
-        gdbm headers
+        gdbm, zlib, Mini-XML headers
     - Claudio Tinivella (tinycla[at]yahoo.it)
         Gtk tutorials
     - Chris Davies (c.g.davies[at]gmail.com)
@@ -160,14 +160,15 @@
     - Laanan Fisher (laananfisher[at]gmail.com)
         FB test suite using CUnit
     - Matthew Riley (pestery)
-        OpenGL, GLFW, glext, FreeGLUT headers
+        OpenGL, GLFW, glext, FreeGLUT, cryptlib headers
     - Matthias Faust (matthias_faust[at]web.de)
         SDL_ttf headers & examples
     - Marzec
         SDL headers, SDL_bassgl, SDL_opengl and SDL_key examples
         First file routines for FB's rtlib
     - MOD
-        wx-c, BASS headers; -lang qb support for built-in macros
+        wx-c, BASS headers; -lang qb support for built-in macros,
+        "real" Rnd() algorithm
     - Nek (dave[at]nodtveidt.net)
         Win32 API headers
     - Plasma

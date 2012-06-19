@@ -542,17 +542,16 @@ function astNewCONV _
 
 	'' high-level IR? always convert..
 	if( irGetOption( IR_OPT_HIGHLEVEL ) ) then
-	    '' special case: if it's a float to int, use a builtin function
-	    if (ldclass = FB_DATACLASS_FPOINT) and ( typeGetClass( to_dtype ) = FB_DATACLASS_INTEGER ) then
-        	return rtlMathFTOI( l, to_dtype )
-        else			
-        	select case typeGetDtAndPtrOnly( to_dtype )
+		'' special case: if it's a float to int, use a builtin function
+		if( (ldclass = FB_DATACLASS_FPOINT) and (typeGetClass( to_dtype ) = FB_DATACLASS_INTEGER) ) then
+			return rtlMathFTOI( l, to_dtype )
+		else
+			select case( typeGetDtAndPtrOnly( to_dtype ) )
 			case FB_DATATYPE_STRUCT '', FB_DATATYPE_CLASS
 				'' C (not C++) doesn't support casting from a UDT to another, so do this instead: lhs = *((typeof(lhs)*)&rhs)
 				return astNewDEREF( astNewCONV( typeAddrOf( to_dtype ), to_subtype, astNewADDROF( l ) ) )   
 			end select
-        end if
-
+		end if
 	else
 		'' only convert if the classes are different (ie, floating<->integer) or
 		'' if sizes are different (ie, byte<->int)
@@ -568,7 +567,7 @@ function astNewCONV _
 			End Select
 		end if
 
-		if( irGetOption( IR_OPT_FPU_CONVERTOPER ) ) then
+		if( irGetOption( IR_OPT_FPUCONV ) ) then
 			if (ldclass = FB_DATACLASS_FPOINT) and ( typeGetClass( to_dtype ) = FB_DATACLASS_FPOINT ) then
 				if( typeGetSize( ldtype ) <> typeGetSize( to_dtype ) ) then
 					doConv = TRUE
@@ -589,7 +588,6 @@ function astNewCONV _
 			end if
 		end if
 	end if
-
 
 	'' alloc new node
 	n = astNewNode( AST_NODECLASS_CONV, to_dtype, to_subtype )

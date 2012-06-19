@@ -296,26 +296,6 @@ function astTypeIniScopeEnd _
 end function
 
 '':::::
-function astTypeIniSeparator _
-	( _
-		byval tree as ASTNODE ptr, _
-		byval sym as FBSYMBOL ptr _
-	) as ASTNODE ptr
-
-	dim as ASTNODE ptr n = any
-
-	n = hAddNode( tree, _
-				  AST_NODECLASS_TYPEINI_SEPARATOR, _
-				  FB_DATATYPE_INVALID, _
-				  NULL )
-
-	n->sym = sym
-
-	function = n
-
-end function
-
-'':::::
 private function hCallCtor _
 	( _
 		byval flush_tree as ASTNODE ptr, _
@@ -382,29 +362,23 @@ private function hCallCtorList _
     	label = symbAddLabel( NULL )
     	iter = symbAddTempVar( typeAddrOf( dtype ), subtype, FALSE, FALSE )
 
-		flush_tree = astNewLINK( flush_tree, _
-								 astBuildVarAssign( iter, _
-								 					astNewADDROF( fldexpr ) ) )
+		flush_tree = astNewLINK( flush_tree, astBuildVarAssign( iter, astNewADDROF( fldexpr ) ) )
 
 		'' for cnt = 0 to elements-1
-		flush_tree = astBuildForBeginEx( flush_tree, cnt, label, 0 )
+		flush_tree = astBuildForBegin( flush_tree, cnt, label, 0 )
 
 		'' ctor( *iter )
-		flush_tree = astNewLINK( flush_tree, _
-								 astBuildCtorCall( subtype, astBuildVarDeref( iter ) ) )
+		flush_tree = astNewLINK( flush_tree, astBuildCtorCall( subtype, astBuildVarDeref( iter ) ) )
 
 		'' iter += 1
-    	flush_tree = astNewLINK( flush_tree, _
-    							 astBuildVarInc( iter, 1 ) )
+		flush_tree = astNewLINK( flush_tree, astBuildVarInc( iter, 1 ) )
 
-    	'' next
-    	flush_tree = astBuildForEndEx( flush_tree, cnt, label, 1, elements )
-
-    else
-    	'' ctor( this )
-    	flush_tree = astNewLINK( flush_tree, _
-    							 astBuildCtorCall( subtype, fldexpr ) )
-    end if
+		'' next
+		flush_tree = astBuildForEnd( flush_tree, cnt, label, 1, astNewCONSTi( elements ) )
+	else
+		'' ctor( this )
+		flush_tree = astNewLINK( flush_tree, astBuildCtorCall( subtype, fldexpr ) )
+	end if
 
 	function = flush_tree
 
@@ -418,122 +392,114 @@ private function hFlushTree _
 		byval do_deref as integer _
 	) as ASTNODE ptr
 
-	dim as ASTNODE ptr n = any, nxt = any, flush_tree = NULL
-	dim as FBSYMBOL ptr last_bitfield = NULL
+	dim as ASTNODE ptr n = any, nxt = any, flush_tree = any, lside = any
+	dim as FBSYMBOL ptr bitfield = any
+	dim as integer dtype = any
 
-	function = NULL
-
+	flush_tree = NULL
 	n = tree->l
 	do while( n <> NULL )
 		nxt = n->r
 
-		dim as ASTNODE ptr lside = any
-
 		select case as const n->class
 		case AST_NODECLASS_TYPEINI_ASSIGN
+			''
+			'' basesym is the initialization target,
+			'' either the object itself or a pointer to the target.
+			''
+			'' n->sym (symbol associated with the TYPEINI_ASSIGN) is
+			'' the symbol that's directly initialized by this
+			'' TYPEINI_ASSIGN.
+			'' It can be the same as basesym, e.g. when initializing
+			'' a simple integer, or it can be a field while basesym
+			'' is the UDT or a pointer to it, and it can be NULL too,
+			'' at least with some parameter initializers.
+			''
 
 			if( symbIsParamInstance( basesym ) ) then
-
-				lside = astBuildInstPtrAtOffset( basesym, _
-									 n->sym, _
-									 n->typeini.ofs )
-
+				'' Assigning to object through THIS pointer, a DEREF is done.
+				lside = astBuildInstPtrAtOffset( basesym, n->sym, n->typeini.ofs )
 			else
+				if( do_deref ) then
+					'' Assigning to object through pointer, a DEREF is done.
+					assert( n->sym )
 
-				'' var?
-				if( do_deref = FALSE ) then
-					lside = astNewVAR( basesym, _
-									   n->typeini.ofs, _
-									   astGetFullType( n ), _
-									   n->subtype )
+					''
+					'' Must make sure to have the proper type on the DEREF,
+					'' otherwise the ASSIGN to it will fail or be wrong and
+					'' possibly cause trouble with the backends.
+					''
+					'' We need to do a typeDeref() if it's the basesym pointer,
+					'' but not if it's something else (e.g. a field).
+					'' TODO: is this check correct/enough?
+					''
+					dtype = n->dtype
+					if( n->sym = basesym ) then
+						assert( typeIsPtr( dtype ) )
+						dtype = typeDeref( dtype )
+					end if
 
-				'' deref..
+					lside = astNewDEREF( astNewVAR( basesym, 0, symbGetFullType( basesym ), symbGetSubtype( basesym ) ), _
+					                     dtype, n->subtype, n->typeini.ofs )
 				else
-					lside = astNewDEREF( astNewVAR( basesym, _
-													0, _
-													symbGetFullType( basesym ), _
-													symbGetSubtype( basesym ) ), _
-										 astGetFullType( n ), _
-										 n->subtype, _
-										 n->typeini.ofs )
+					'' Assigning to object directly
+					'' Note: n->sym may be NULL (from a astReplaceSymbolOnTree(), so n's dtype/subtype are used instead.
+					lside = astNewVAR( basesym, n->typeini.ofs, astGetFullType( n ), n->subtype )
 				end if
 
-				if( n->sym <> NULL ) then
-					'' field?
+				if( n->sym ) then
+					'' Field?
 					if( symbIsField( n->sym ) ) then
+						'' If it's a bitfield, clear the whole field containing this bitfield,
+						'' otherwise the bitfield assignment(s) would leave unused bits
+						'' uninitialized.
 
-						lside = astNewFIELD( lside, _
-											 n->sym, _
-											 astGetFullType( n ), _
-											 n->subtype )
-					end if
-				end if
-			end if
+						'' Bitfield?
+						if( astGetDataType( lside ) = FB_DATATYPE_BITFIELD ) then
+							bitfield = astGetSubType( lside )
+							assert( symbGetClass( bitfield ) = FB_SYMBCLASS_BITFIELD )
+							assert( typeGetClass( symbGetType( bitfield ) ) = FB_DATACLASS_INTEGER )
 
-			dim as integer is_bitfield = FALSE
-
-			'' not a ctor?
-			if( symbIsParamInstance( basesym ) = FALSE ) then
-				if( lside->class = AST_NODECLASS_FIELD ) then
-					if( astGetDataType( astGetLeft( lside ) ) = FB_DATATYPE_BITFIELD ) then
-						is_bitfield = TRUE
-
-						'' new bitfield? 0 it before any bits are set
-						if( last_bitfield <> n->sym->parent ) then
-
-							lside = astNewASSIGN( lside, _
-												  astNewCONSTi( 0, astGetDataType( lside ) ), _
-												  AST_OPOPT_ISINI or AST_OPOPT_DONTCHKPTR )
-
-							last_bitfield = n->sym->parent
-
+							'' Beginning of a field containing one or more bitfields?
+							if( bitfield->bitfld.bitpos = 0 ) then
+								flush_tree = astNewLINK( flush_tree, _
+									astNewMEM( AST_OP_MEMCLEAR, _
+										astCloneTree( lside ), _
+										astNewCONSTi( typeGetSize( symbGetType( bitfield ) ) ) ) )
+							end if
 						end if
+
+						lside = astNewFIELD( lside, n->sym, astGetFullType( n ), n->subtype )
 					end if
 				end if
 			end if
 
-
-			dim as ASTNODE ptr a = astNewASSIGN( lside, _
-												 n->l, _
-												 AST_OPOPT_ISINI or AST_OPOPT_DONTCHKPTR )
-
-			flush_tree = astNewLINK( flush_tree, a )
-
-			'' bitfields have to be updated (but i dunno if this is the best place)
-			if( is_bitfield ) then
-				astUpdateBitfieldAssignment( a->l, a->r )
-			end if
+			assert( astCheckASSIGN( lside, n->l ) )
+			lside = astNewASSIGN( lside, n->l, AST_OPOPT_ISINI or AST_OPOPT_DONTCHKPTR )
+			assert( lside <> NULL )
+			flush_tree = astNewLINK( flush_tree, lside )
 
 		case AST_NODECLASS_TYPEINI_PAD
+			'' Clear some padding bytes...
 			if( symbIsParamInstance( basesym ) ) then
-				lside = astBuildInstPtrAtOffset( basesym, _
-										 NULL, _
-										 n->typeini.ofs )
+				'' through THIS pointer
+				lside = astBuildInstPtrAtOffset( basesym, NULL, n->typeini.ofs )
 			else
-				dim as integer dtype = symbGetFullType( basesym )
-				dim as FBSYMBOL ptr subtype = symbGetSubtype( basesym )
+				dtype = symbGetFullType( basesym )
 
-				if( do_deref = FALSE ) then
-					lside = astNewVAR( basesym, _
-									   n->typeini.ofs, _
-									   dtype, _
-									   subtype )
-
+				if( do_deref ) then
+					'' through a pointer
+					assert( typeIsPtr( dtype ) )
+					lside = astNewDEREF( astNewVAR( basesym, 0, dtype, symbGetSubtype( basesym ) ), _
+					                     typeDeref( dtype ), symbGetSubtype( basesym ), n->typeini.ofs )
 				else
-					lside = astNewDEREF( astNewVAR( basesym, _
-													0, _
-													dtype, _
-													subtype ), _
-										 typeDeref( dtype ), _
-										 subtype, _
-										 n->typeini.ofs )
+					'' directly
+					lside = astNewVAR( basesym, n->typeini.ofs, dtype, symbGetSubtype( basesym ) )
 				end if
 			end if
 
 			flush_tree = astNewLINK( flush_tree, _
-									 astNewMEM( AST_OP_MEMCLEAR, _
-												lside, _
-												astNewCONSTi( n->typeini.bytes ) ) )
+				astNewMEM( AST_OP_MEMCLEAR, lside, astNewCONSTi( n->typeini.bytes ) ) )
 
 		case AST_NODECLASS_TYPEINI_CTORCALL
 			flush_tree = hCallCtor( flush_tree, n, basesym )
@@ -548,7 +514,6 @@ private function hFlushTree _
 	loop
 
 	function = flush_tree
-
 end function
 
 '':::::
@@ -685,13 +650,10 @@ private function hFlushTreeStatic _
     		irEmitVARINIPAD( n->typeini.bytes )
 
     	case AST_NODECLASS_TYPEINI_SCOPEINI
-    		irEmitVARINISCOPEINI( basesym, n->sym )
+			irEmitVARINISCOPEBEGIN( )
 
     	case AST_NODECLASS_TYPEINI_SCOPEEND
-    		irEmitVARINISCOPEEND( basesym, n->sym )
-
-    	case AST_NODECLASS_TYPEINI_SEPARATOR
-    		irEmitVARINISEPARATOR( basesym, n->sym )
+			irEmitVARINISCOPEEND( )
 
     	case else
 			hFlushExprStatic( n, basesym )
@@ -809,9 +771,7 @@ function astTypeIniFlush _
 		hFlushTreeStatic( tree, basesym )
 		function = NULL
 	else
-		function = hFlushTree( tree, _
-							   basesym, _
-							   (options and AST_INIOPT_DODEREF) <> 0 )
+		function = hFlushTree( tree, basesym, ((options and AST_INIOPT_DODEREF) <> 0) )
 	end if
 
 	if( (options and AST_INIOPT_RELINK) <> 0 ) then
@@ -989,73 +949,51 @@ function astTypeIniCheckScope _
 
 end function
 
-'':::::
-private sub hWalk _
+private function hWalk _
 	( _
-		byval node as ASTNODE ptr, _
+		byval n as ASTNODE ptr, _
 		byval parent as ASTNODE ptr _
-	)
-
-    dim as ASTNODE ptr expr = any
-    dim as FBSYMBOL ptr sym = any
-
-	if( node->class = AST_NODECLASS_TYPEINI ) then
-		sym = symbAddTempVar( astGetFullType( node ), _
-							  node->subtype, _
-							  FALSE, _
-							  FALSE )
-
-		expr = astNewVAR( sym, 0, astGetFullType( node ), node->subtype )
-		if( parent->l = node ) then
-			parent->l = expr
-		else
-			parent->r = expr
-		end if
-
-		astAdd( astTypeIniFlush( node, _
-								 sym, _
-								 AST_INIOPT_NONE ) )
-    	exit sub
-    end if
-
-	'' walk
-	expr = node->l
-	if( expr <> NULL ) then
-		hWalk( expr, node )
-	end if
-
-	expr = node->r
-	if( expr <> NULL ) then
-		hWalk( expr, node )
-	end if
-
-end sub
-
-'':::::
-function astTypeIniUpdate _
-	( _
-		byval tree as ASTNODE ptr _
 	) as ASTNODE ptr
 
-    dim as ASTNODE ptr expr = any
+	dim as ASTNODE ptr expr = any
+	dim as FBSYMBOL ptr sym = any
 
-	function = tree
+	if( n = NULL ) then
+		return NULL
+	end if
 
-    if( ast.typeinicnt <= 0 ) then
-    	exit function
-    end if
+	if( n->class = AST_NODECLASS_TYPEINI ) then
+		'' Create a temporary variable which is initialized by the
+		'' astTypeIniFlush() below.
+		sym = symbAddTempVar( astGetFullType( n ), n->subtype, FALSE, FALSE )
+
+		'' Update the parent node in the original tree to access the
+		'' temporary variable, instead of the TYPEINI. (it could be an
+		'' ASSIGN, ADDROF, ARG, etc...)
+		if( parent ) then
+			expr = astNewVAR( sym, 0, astGetFullType( n ), n->subtype )
+			if( parent->l = n ) then
+				parent->l = expr
+			else
+				parent->r = expr
+			end if
+		end if
+
+		return astTypeIniFlush( n, sym, AST_INIOPT_NONE )
+	end if
 
 	'' walk
-	expr = tree->l
-	if( expr <> NULL ) then
-		hWalk( expr, tree )
+	return astNewLINK( hWalk( n->l, n ), hWalk( n->r, n ) )
+end function
+
+function astTypeIniUpdate( byval tree as ASTNODE ptr ) as ASTNODE ptr
+	if( ast.typeinicnt <= 0 ) then
+		return tree
 	end if
 
-	expr = tree->r
-	if( expr <> NULL ) then
-		hWalk( expr, tree )
-	end if
-
+	'' Walk to expand any TYPEINIs. Note that the original tree will be
+	'' updated too, and both are needed.
+	return astNewLINK( hWalk( tree, NULL ), tree )
 end function
 
 '':::::

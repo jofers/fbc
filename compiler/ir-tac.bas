@@ -170,8 +170,6 @@ private sub _init(byval backend as FB_BACKEND)
 	for i as integer = 0 to EMIT_REGCLASSES-1
 		regTB(i) = emitGetRegClass( i )
 	next
-
-	irSetOption( IR_OPT_NESTEDFIELDS )
 end sub
 
 private sub _end()
@@ -395,7 +393,7 @@ end function
 '':::::
 private function _procGetFrameRegName _
 	( _
-	) as zstring ptr
+	) as const zstring ptr
 
 	function = emitProcGetFrameRegName( )
 
@@ -547,19 +545,6 @@ end sub
 
 '':::::
 private sub _emitBop _
-	( _
-		byval op as integer, _
-		byval v1 as IRVREG ptr, _
-		byval v2 as IRVREG ptr, _
-		byval vr as IRVREG ptr _
-	)
-
-	_emit( op, v1, v2, vr )
-
-end sub
-
-'':::::
-private sub _emitBopEx _
 	( _
 		byval op as integer, _
 		byval v1 as IRVREG ptr, _
@@ -805,81 +790,38 @@ private sub _emitASM _
 
 end sub
 
-'':::::
-private sub _emitVarIniBegin _
-	( _
-		byval sym as FBSYMBOL ptr _
-	) static
-
+private sub _emitVarIniBegin( byval sym as FBSYMBOL ptr )
 	'' no flush, all var-ini go to data sections
-
 	emitVARINIBEGIN( sym )
-
 end sub
 
-'':::::
-private sub _emitVarIniEnd _
-	( _
-		byval sym as FBSYMBOL ptr _
-	) static
-
-	emitVARINIEND( sym )
-
+private sub _emitVarIniEnd( byval sym as FBSYMBOL ptr )
 end sub
 
-'':::::
-private sub _emitVarIniI _
-	( _
-		byval dtype as integer, _
-		byval value as integer _
-	) static
-
+private sub _emitVarIniI( byval dtype as integer, byval value as integer )
 	emitVARINIi( dtype, value )
-
 end sub
 
-'':::::
-private sub _emitVarIniF _
-	( _
-		byval dtype as integer, _
-		byval value as double _
-	) static
-
+private sub _emitVarIniF( byval dtype as integer, byval value as double )
 	emitVARINIf( dtype, value )
-
 end sub
 
-'':::::
-private sub _emitVarIniI64 _
-	( _
-		byval dtype as integer, _
-		byval value as longint _
-	) static
-
+private sub _emitVarIniI64( byval dtype as integer, byval value as longint )
 	emitVARINI64( dtype, value )
-
 end sub
 
-'':::::
-private sub _emitVarIniOfs _
-	( _
-		byval sym as FBSYMBOL ptr, _
-		byval ofs as integer _
-	) static
-
+private sub _emitVarIniOfs( byval sym as FBSYMBOL ptr, byval ofs as integer )
 	emitVARINIOFS( symbGetMangledName( sym ), ofs )
-
 end sub
 
-'':::::
 private sub _emitVarIniStr _
 	( _
 		byval totlgt as integer, _
 		byval litstr as zstring ptr, _
 		byval litlgt as integer _
-	) static
+	)
 
-	dim as zstring ptr s
+	dim as const zstring ptr s
 
 	'' zstring * 1?
 	if( totlgt = 0 ) then
@@ -911,7 +853,7 @@ private sub _emitVarIniWstr _
 		byval totlgt as integer, _
 		byval litstr as wstring ptr, _
 		byval litlgt as integer _
-	) static
+	)
 
 	dim as zstring ptr s
 	dim as integer wclen
@@ -942,47 +884,16 @@ private sub _emitVarIniWstr _
 
 end sub
 
-'':::::
-private sub _emitVarIniPad _
-	( _
-		byval bytes as integer _
-	) static
-
+private sub _emitVarIniPad( byval bytes as integer )
 	emitVARINIPAD( bytes )
-
 end sub
 
-'':::::
-private sub _emitVarIniScopeBegin _
-	( _
-		byval basesym as FBSYMBOL ptr, _
-		byval sym as FBSYMBOL ptr _
-	) static
-
-	emitVARINISCOPEINI( )
-
+private sub _emitVarIniScopeBegin( )
+	'' Used by C-emitter only
 end sub
 
-'':::::
-private sub _emitVarIniScopeEnd _
-	( _
-		byval basesym as FBSYMBOL ptr, _
-		byval sym as FBSYMBOL ptr _
-	) static
-
-	emitVARINISCOPEEND( )
-
-end sub
-
-'':::::
-private sub _emitVarIniSeparator _
-	( _
-		byval basesym as FBSYMBOL ptr, _
-		byval sym as FBSYMBOL ptr _
-	) static
-
-	emitVARINISEPARATOR( )
-
+private sub _emitVarIniScopeEnd( )
+	'' Used by C-emitter only
 end sub
 
 '':::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -1101,7 +1012,7 @@ private function _allocVrImmF _
 	dim as IRVREG ptr vr = any
 
 	'' the FPU doesn't support immediates? create a temp const var_..
-	if( irGetOption( IR_OPT_FPU_IMMOPER ) = FALSE ) then
+	if( irGetOption( IR_OPT_FPUIMMEDIATES ) = FALSE ) then
 		dim as FBSYMBOL ptr s = symbAllocFloatConst( value, dtype )
 		return irAllocVRVAR( dtype, subtype, s, symbGetOfs( s ) )
 	end if
@@ -2324,7 +2235,7 @@ private sub hFlushCONVERT _
 
 		'' fp to fp conversion with source already on stack? do nothing..
 		if( v2_dclass = FB_DATACLASS_FPOINT ) then
-			if( irGetOption( IR_OPT_FPU_CONVERTOPER ) ) then
+			if( irGetOption( IR_OPT_FPUCONV ) ) then
 
 				v1->regFamily = v2->regFamily
 				if( v2->regFamily = IR_REG_FPU_STACK ) then exit sub
@@ -2817,7 +2728,6 @@ sub irTAC_ctor()
 		@_emitComment, _
 		@_emitJmpTb, _
 		@_emitBop, _
-		@_emitBopEx, _
 		@_emitUop, _
 		@_emitStore, _
 		@_emitSpillRegs, _
@@ -2846,7 +2756,6 @@ sub irTAC_ctor()
 		@_emitVarIniPad, _
 		@_emitVarIniScopeBegin, _
 		@_emitVarIniScopeEnd, _
-		@_emitVarIniSeparator, _
 		@_allocVreg, _
 		@_allocVrImm, _
 		@_allocVrImm64, _

@@ -706,21 +706,11 @@ private function hDoPointerArith _
 			exit function
 		end if
 
-    	'' multiple by length
-		e = astNewBOP( AST_OP_MUL, e, astNewCONSTi( lgt, FB_DATATYPE_INTEGER ) )
+		'' multiple by length
+		e = astNewBOP( AST_OP_MUL, e, astNewCONSTi( lgt ) )
 
-		'' do op, taking care with the arith if the IR is high-level (ie: the gcc emitter)
-		var n = astNewBOP( op, _
-					   	   iif( irGetOption( IR_OPT_HIGHLEVEL ), _
-					   			astNewCONV( typeAddrOf( FB_DATATYPE_UBYTE ), NULL, p ), _
-					   			p ), _
-					   	   e )
-
-		if( irGetOption( IR_OPT_HIGHLEVEL ) ) then
-			n = astNewCONV( astGetDataType( p ), astGetSubType( p ), n )
-		end if
-
-		function = n
+		'' do op
+		function = astNewBOP( op, p, e )
 
     case else
     	'' allow AND and OR??
@@ -1195,7 +1185,7 @@ function astNewBOP _
 		if( rdclass <> FB_DATACLASS_FPOINT ) then
 			rdtype = typeJoin( rdtype, FB_DATATYPE_DOUBLE )
 
-			if( irGetOption( IR_OPT_FPU_CONVERTOPER ) ) then
+			if( irGetOption( IR_OPT_FPUCONV ) ) then
 				r = astNewCONV( rdtype, NULL, r )
 			else
 				'' if it's an int var, let the FPU do it
@@ -1254,7 +1244,7 @@ function astNewBOP _
 			'' the result type will be always a double
 			if( ldclass = FB_DATACLASS_FPOINT ) then
 
-				if( irGetOption( IR_OPT_FPU_CONVERTOPER ) ) then
+				if( irGetOption( IR_OPT_FPUCONV ) ) then
 					dtype   = ldtype
 					subtype = l->subtype
 				else
@@ -1697,9 +1687,9 @@ function astLoadBOP _
 		'' execute the operation
 		if( n->op.ex <> NULL ) then
 			'' hack! ex=label, vr being NULL 'll gen better code at IR..
-			irEmitBOPEx( op, v1, v2, NULL, n->op.ex )
+			irEmitBOP( op, v1, v2, NULL, n->op.ex )
 		else
-			irEmitBOPEx( op, v1, v2, vr, NULL )
+			irEmitBOP( op, v1, v2, vr, NULL )
 		end if
 
 		'' "var op= expr" optimizations

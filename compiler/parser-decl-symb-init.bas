@@ -142,10 +142,7 @@ private function hArrayInit _
 
 		ctx.dimcnt += 1
 
-		'' open a scope only if it's the first dim -- used by the gcc emitter
-		if( ctx.dimcnt = 1 ) then
-			astTypeIniScopeBegin( ctx.tree, ctx.sym )
-		end if
+		astTypeIniScopeBegin( ctx.tree, ctx.sym )
 
 		'' too many dimensions?
 		if( ctx.dimcnt > dimensions ) then
@@ -243,11 +240,11 @@ private function hArrayInit _
 		if( hMatch( CHAR_COMMA ) = FALSE ) then
 			exit do
 		end if
-
-        astTypeIniSeparator( ctx.tree, ctx.sym )
 	loop
 
-	'' pad
+	'' Any array elements not initialized by this '{...}'?
+	'' Then default-initialize/zero them. With multi-dimensional arrays,
+	'' this may happen "in the middle" of the array.
 	elements -= elm_cnt
 	if( elements > 0 ) then
 		'' not the last dimension?
@@ -261,8 +258,8 @@ private function hArrayInit _
 			if( ctor = NULL ) then
 				errReport( FB_ERRMSG_NODEFAULTCTORDEFINED )
 			else
-    			'' check visibility
-	    		if( symbCheckAccess( subtype, ctor ) = FALSE ) then
+				'' check visibility
+				if( symbCheckAccess( ctor ) = FALSE ) then
 					errReport( FB_ERRMSG_NOACCESSTODEFAULTCTOR )
 				end if
 			end if
@@ -285,15 +282,10 @@ private function hArrayInit _
 			astTypeIniAddPad( ctx.tree, pad_lgt )
 			astTypeIniGetOfs( ctx.tree ) += pad_lgt
 		end if
-
 	end if
 
 	if( isarray ) then
-
-		'' close the scope only if it's the first dim -- used by the gcc emitter
-		if( ctx.dimcnt = 1 ) then
-			astTypeIniScopeEnd( ctx.tree, ctx.sym )
-		end if
+		astTypeIniScopeEnd( ctx.tree, ctx.sym )
 
 		'' '}'
 		if( lexGetToken( ) <> CHAR_RBRACE ) then
@@ -426,6 +418,7 @@ private function hUDTInit _
 
 		elm_ofs = elm->ofs
 		if( lgt > 0 ) then
+			'' Padding between fields (due to structure layout)
 			pad_lgt = elm_ofs - lgt
 			if( pad_lgt > 0 ) then
 				astTypeIniAddPad( ctx.tree, pad_lgt )
@@ -435,12 +428,10 @@ private function hUDTInit _
 
 		astTypeIniGetOfs( ctx.tree ) = baseofs + elm_ofs
 
-		if( symbCheckAccess( symbGetSubtype( elm ), _
-							 elm ) = FALSE ) then
-
+		if( symbCheckAccess( elm ) = FALSE ) then
 			errReport( FB_ERRMSG_ILLEGALMEMBERACCESS )
 		end if
-        ctx.sym = elm
+		ctx.sym = elm
 
 		'' has ctor?
 		ctx.options and= not FB_INIOPT_ISOBJ
@@ -525,8 +516,6 @@ private function hUDTInit _
 		if( hMatch( CHAR_COMMA ) = FALSE ) then
 			exit do
 		end if
-
-        astTypeIniSeparator( ctx.tree, ctx.sym )
 	loop
 
 	'' ')'
@@ -544,15 +533,13 @@ private function hUDTInit _
 	'' restore parent
 	ctx = old_ctx
 
-	''
+	'' Padding at the end of the UDT -- this zeroes tail padding bytes,
+	'' and also any uninitialized fields.
 	dim as integer sym_len = symbCalcLen( dtype, subtype )
-
-	'' pad
 	pad_lgt = sym_len - lgt
 	if( pad_lgt > 0 ) then
 		astTypeIniAddPad( ctx.tree, pad_lgt )
 	end if
-
 	astTypeIniGetOfs( ctx.tree ) = baseofs + sym_len
 
 	rec_cnt -= 1

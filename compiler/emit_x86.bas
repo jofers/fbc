@@ -66,7 +66,7 @@ declare function _getSectionString _
 	( _
 		byval section as integer, _
 		byval priority as integer _
-	) as zstring ptr
+	) as const zstring ptr
 
 declare sub _setSection _
 	( _
@@ -77,7 +77,7 @@ declare sub _setSection _
 declare function _getTypeString _
 	( _
 		byval dtype as integer _
-	) as zstring ptr
+	) as const zstring ptr
 
 
 '' from emit_SSE.bas
@@ -134,7 +134,7 @@ declare function _init_opFnTB_SSE _
 
 const EMIT_MAXKEYWORDS = 600
 
-	dim shared keywordTb(0 to EMIT_MAXKEYWORDS-1) as zstring ptr => _
+	dim shared keywordTb(0 to EMIT_MAXKEYWORDS-1) as const zstring ptr => _
 	{ _
 		@"st", @"cs", @"ds", @"es", @"fs", @"gs", @"ss", _
 		@"mm0", @"mm1", @"mm2", @"mm3", @"mm4", @"mm5", @"mm6", @"mm7", _
@@ -6265,12 +6265,7 @@ end sub
 '' initializers
 ''::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-'':::::
-sub emitVARINIBEGIN _
-	( _
-		byval sym as FBSYMBOL ptr _
-	) static
-
+sub emitVARINIBEGIN( byval sym as FBSYMBOL ptr )
 	_setSection( IR_SECTION_DATA, 0 )
 
 	'' add dbg info, if public or shared
@@ -6290,71 +6285,23 @@ sub emitVARINIBEGIN _
 	end if
 
 	hLABEL( *symbGetMangledName( sym ) )
-
 end sub
 
-'':::::
-sub emitVARINIEND _
-	( _
-		byval sym as FBSYMBOL ptr _
-	) static
-
+sub emitVARINIi( byval dtype as integer, byval value as integer )
+	outEx( *_getTypeString( dtype ) + " " + str( value ) + NEWLINE )
 end sub
 
-'':::::
-sub emitVARINIi _
-	( _
-		byval dtype as integer, _
-		byval value as integer _
-	) static
-
-	dim ostr as string
-
-	ostr = *_getTypeString( dtype ) + " " + str( value ) + NEWLINE
-	outEx( ostr )
-
-end sub
-
-'':::::
-sub emitVARINIf _
-	( _
-		byval dtype as integer, _
-		byval value as double _
-	) static
-
-	dim as string svalue, ostr
-
+sub emitVARINIf( byval dtype as integer, byval value as double )
 	'' can't use STR() because GAS doesn't support the 1.#INF notation
-	svalue = hFloatToStr( value, dtype )
-
-	ostr = *_getTypeString( dtype ) + " " + svalue + NEWLINE
-	outEx( ostr )
-
+	outEx( *_getTypeString( dtype ) + " " + hFloatToStr( value, dtype ) + NEWLINE )
 end sub
 
-'':::::
-sub emitVARINI64 _
-	( _
-		byval dtype as integer, _
-		byval value as longint _
-	) static
-
-	dim ostr as string
-
-	ostr = *_getTypeString( dtype ) + " 0x" + hex( value ) + NEWLINE
-	outEx( ostr )
-
+sub emitVARINI64( byval dtype as integer, byval value as longint )
+	outEx( *_getTypeString( dtype ) + " 0x" + hex( value ) + NEWLINE )
 end sub
 
-'':::::
-sub emitVARINIOFS _
-	( _
-		byval sname as zstring ptr, _
-		byval ofs as integer _
-	) static
-
-	dim as string ostr
-
+sub emitVARINIOFS( byval sname as zstring ptr, byval ofs as integer )
+	static as string ostr
 	ostr = ".int "
 	ostr += *sname
 	if( ofs <> 0 ) then
@@ -6363,81 +6310,27 @@ sub emitVARINIOFS _
 	end if
 	ostr += NEWLINE
 	outEx( ostr )
-
 end sub
 
-'':::::
-sub emitVARINISTR _
-	( _
-		byval s as zstring ptr _
-	) static
-
-    dim ostr as string
-
+sub emitVARINISTR( byval s as const zstring ptr )
+	static as string ostr
 	ostr = ".ascii " + QUOTE
 	ostr += *s
 	ostr += RSLASH + "0" + QUOTE + NEWLINE
 	outEx( ostr )
-
 end sub
 
-'':::::
-sub emitVARINIWSTR _
-	( _
-		byval s as zstring ptr _
-	) static
-
-    dim ostr as string
-
+sub emitVARINIWSTR( byval s as zstring ptr )
+	static as string ostr
 	ostr = ".ascii " + QUOTE
 	ostr += *s
 	ostr += *hGetWstrNull( )
 	ostr += QUOTE + NEWLINE
 	outEx( ostr )
-
 end sub
 
-'':::::
-sub emitVARINIPAD _
-	( _
-		byval bytes as integer _
-	) static
-
-    dim ostr as string
-
-	ostr = ".skip " + str( bytes ) + ",0" + NEWLINE
-	outEx( ostr )
-
-end sub
-
-'':::::
-sub emitVARINISCOPEINI _
-	( _
-		_
-	)
-
-	'' do nothing, needed by the gcc emitter
-
-end sub
-
-'':::::
-sub emitVARINISCOPEEND _
-	( _
-		_
-	)
-
-	'' do nothing, needed by the gcc emitter
-
-end sub
-
-'':::::
-sub emitVARINISEPARATOR _
-	( _
-		_
-	)
-
-	'' do nothing, needed by the gcc emitter
-
+sub emitVARINIPAD( byval bytes as integer )
+	outEx( ".skip " + str( bytes ) + ",0" + NEWLINE )
 end sub
 
 ''::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -6564,24 +6457,16 @@ private function _init _
 	emit.lastsection = INVALID
 	emit.lastpriority = INVALID
 
-	if( env.clopt.fputype = FB_FPUTYPE_SSE ) then
-		irSetOption( IR_OPT_CPU_BOPSELF or _
-					IR_OPT_FPU_CONVERTOPER or _
-					IR_OPT_CPU_BOPSETFLAGS or _
-					IR_OPT_ADDRCISC or _
-				 	IR_OPT_REUSEOPER or _
-					IR_OPT_IMMOPER )
-	else
-		irSetOption( IR_OPT_FPU_STACK or _
-					IR_OPT_CPU_BOPSELF or _
-					IR_OPT_CPU_BOPSETFLAGS or _
-					IR_OPT_ADDRCISC or _
-					IR_OPT_REUSEOPER or _
-					IR_OPT_IMMOPER )
+	dim as uinteger iroptions = _
+		IR_OPT_CPUSELFBOPS or IR_OPT_CPUBOPFLAGS or _
+		IR_OPT_ADDRCISC
 
+	if( env.clopt.fputype = FB_FPUTYPE_SSE ) then
+		iroptions or= IR_OPT_FPUCONV
 	end if
 
-    ''
+	irSetOption( iroptions )
+
 	edbgInit( )
 
 	function = TRUE
@@ -6720,7 +6605,7 @@ end function
 '':::::
 private function _procGetFrameRegName _
 	( _
-	) as zstring ptr
+	) as const zstring ptr
 
 	static as zstring * 3+1 sname = "ebp"
 
@@ -6987,7 +6872,7 @@ private sub _setSection _
 		byval priority as integer _
 	)
 
-	dim as zstring ptr sec = _getSectionString( section, priority )
+	dim as const zstring ptr sec = _getSectionString( section, priority )
 	if( sec = NULL ) then
 		exit sub
 	end if
@@ -7005,7 +6890,7 @@ end sub
 private function _getTypeString _
 	( _
 		byval dtype as integer _
-	) as zstring ptr
+	) as const zstring ptr
 
 	select case as const typeGet( dtype )
     case FB_DATATYPE_UBYTE, FB_DATATYPE_BYTE
@@ -7051,7 +6936,7 @@ private function _getSectionString _
 	( _
 		byval section as integer, _
 		byval priority as integer _
-	) as zstring ptr
+	) as const zstring ptr
 
 	static as string ostr
 

@@ -195,7 +195,7 @@ function symbAddArrayDesc _
     dim as FBSYMBOL ptr desc = any, desctype = any
     dim as FB_SYMBATTRIB attrib = any
     dim as FBSYMBOLTB ptr symbtb = any
-    dim as integer isdynamic = any, ispubext = any
+	dim as integer isdynamic = any, ispubext = any, stats = any
 
 	function = NULL
 
@@ -205,12 +205,17 @@ function symbAddArrayDesc _
     end if
 
 	id_alias = NULL
+	stats = 0
 
 	'' field?
 	if( symbIsField( array ) ) then
 		static as string tmp
 		tmp = *hMakeTmpStrNL( )
 		id = strptr( tmp )
+		'' Only store an alias if in BASIC mangling
+		if( array->mangling <> FB_MANGLING_BASIC ) then
+			id_alias = id
+		end if
 
 		attrib = FB_SYMBATTRIB_LOCAL
 
@@ -227,12 +232,18 @@ function symbAddArrayDesc _
 		if( symbIsCommon( array ) or (ispubext and isdynamic) ) then
 			id = array->id.name
 			id_alias = array->id.alias
+			'' Preserve FB_SYMBSTATS_HASALIAS stat too
+			stats = array->stats and FB_SYMBSTATS_HASALIAS
 
 		'' otherwise, create a temporary name..
 		else
 			static as string tmp
 			tmp = *hMakeTmpStrNL( )
 			id = strptr( tmp )
+			'' Only store an alias if in BASIC mangling
+			if( array->mangling <> FB_MANGLING_BASIC ) then
+				id_alias = id
+			end if
 		end if
 
 		attrib = array->attrib and (FB_SYMBATTRIB_SHARED or _
@@ -303,9 +314,7 @@ function symbAddArrayDesc _
 	desc->lgt = symbGetLen( desctype )
 	desc->ofs = 0
 
-	desc->stats = array->stats and (FB_SYMBSTATS_VARALLOCATED or _
-									FB_SYMBSTATS_ACCESSED or _
-									FB_SYMBSTATS_HASALIAS)
+	desc->stats = stats or (array->stats and (FB_SYMBSTATS_VARALLOCATED or FB_SYMBSTATS_ACCESSED))
 
 	'' as desc is also a var, clear the var fields
 	desc->var_.array.desc = NULL
@@ -427,7 +436,7 @@ end sub
 private sub hSetupVar _
 	( _
 		byval s as FBSYMBOL ptr, _
-		byval id as zstring ptr, _
+		byval id as const zstring ptr, _
 		byval dtype as integer, _
 		byval subtype as FBSYMBOL ptr, _
 		byval lgt as integer, _
@@ -468,8 +477,8 @@ end sub
 '':::::
 function symbAddVarEx _
 	( _
-		byval id as zstring ptr, _
-		byval id_alias as zstring ptr, _
+		byval id as const zstring ptr, _
+		byval id_alias as const zstring ptr, _
 		byval dtype as integer, _
 		byval subtype as FBSYMBOL ptr, _
 		byval lgt as integer, _

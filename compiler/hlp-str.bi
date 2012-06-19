@@ -75,18 +75,15 @@ declare function hReEscapeW _
 
 declare function hEscape _
 	( _
-		byval text as zstring ptr _
-	) as zstring ptr
+		byval text as const zstring ptr _
+	) as const zstring ptr
 
 declare function hEscapeW _
 	( _
 		byval text as wstring ptr _
 	) as zstring ptr
 
-declare function hEscapeUCN _
-	( _
-		byval text as wstring ptr _
-	) as zstring ptr
+declare function hEscapeToHexW( byval text as wstring ptr ) as string
 
 declare function hUnescape _
 	( _

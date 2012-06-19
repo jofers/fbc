@@ -26,27 +26,22 @@ private function hCtorList _
     					    FALSE, _
     					    FALSE )
 
-    '' fld = @sym(0)
-    tree = astNewLINK( tree, _
-    				   astBuildVarAssign( this_, _
-    						   			  astNewADDROF( astNewVAR( sym, _
-   											 		  		       0, _
-   											 		  			   symbGetFullType( sym ), _
-   											 		  			   subtype ) ) ) )
+	'' fld = @sym(0)
+	tree = astNewLINK( tree, _
+		astBuildVarAssign( this_, _
+			astNewADDROF( astNewVAR( sym, 0, symbGetFullType( sym ), subtype ) ) ) )
 
 	'' for cnt = 0 to symbGetArrayElements( sym )-1
-	tree = astBuildForBeginEx( tree, cnt, label, 0 )
+	tree = astBuildForBegin( tree, cnt, label, 0 )
 
-    '' sym.constructor( )
-	tree = astNewLINK( tree, _
-					   astBuildCtorCall( symbGetSubtype( sym ), _
-					   					  astBuildVarDeref( this_ ) ) )
+	'' sym.constructor( )
+	tree = astNewLINK( tree, astBuildCtorCall( symbGetSubtype( sym ), astBuildVarDeref( this_ ) ) )
 
 	'' this_ += 1
-    tree = astNewLINK( tree, astBuildVarInc( this_, 1 ) )
+	tree = astNewLINK( tree, astBuildVarInc( this_, 1 ) )
 
-    '' next
-    tree = astBuildForEndEx( tree, cnt, label, 1, symbGetArrayElements( sym ) )
+	'' next
+	tree = astBuildForEnd( tree, cnt, label, 1, astNewCONSTi( symbGetArrayElements( sym ) ) )
 
 	function = tree
 
@@ -56,8 +51,7 @@ end function
 private function hCallCtor _
 	( _
 		byval sym as FBSYMBOL ptr, _
-		byval initree as ASTNODE ptr, _
-		byval no_ctorcall as integer _
+		byval initree as ASTNODE ptr _
 	) as ASTNODE ptr
 
 	dim as integer lgt = any
@@ -83,16 +77,15 @@ private function hCallCtor _
    	'' not initialized..
    	subtype = symbGetSubtype( sym )
 
+	'' Do not initialize?
+	if( symbGetDontInit( sym ) ) then
+		exit function
+	end if
+
    	select case symbGetType( sym )
    	case FB_DATATYPE_STRUCT ', FB_DATATYPE_CLASS
    		'' has a default ctor?
    		if( symbGetCompDefCtor( subtype ) <> NULL ) then
-            '' Special case used by local UDT FOR iterators: They will already be
-            '' initialized to the FOR start value using an appropriate constructor.
-            if( no_ctorcall ) then
-                exit function
-            end if
-
    			'' proc result? astProcEnd() will take care of this
    			if( (symbGetAttrib( sym ) and FB_SYMBATTRIB_FUNCRESULT) <> 0 ) then
    				exit function
@@ -115,11 +108,6 @@ private function hCallCtor _
    		end if
    	end select
 
-   	'' do not clear?
-   	if( symbGetDontInit( sym ) ) then
-   		exit function
-   	end if
-
     lgt = symbGetLen( sym ) * symbGetArrayElements( sym )
 
     function = astNewMEM( AST_OP_MEMCLEAR, _
@@ -135,8 +123,7 @@ end function
 function astNewDECL _
 	( _
 		byval sym as FBSYMBOL ptr, _
-		byval initree as ASTNODE ptr, _
-		byval no_ctorcall as integer _
+		byval initree as ASTNODE ptr _
 	) as ASTNODE ptr
 
     dim as ASTNODE ptr n = any
@@ -144,7 +131,7 @@ function astNewDECL _
 	'' alloc new node
 	n = astNewNode( AST_NODECLASS_DECL, FB_DATATYPE_INVALID )
 
-	n->l = hCallCtor( sym, initree, no_ctorcall )
+	n->l = hCallCtor( sym, initree )
 
 	function = n
 

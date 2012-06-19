@@ -19,8 +19,8 @@
 function symbStructBegin _
 	( _
 		byval parent as FBSYMBOL ptr, _
-		byval id as zstring ptr, _
-		byval id_alias as zstring ptr, _
+		byval id as const zstring ptr, _
+		byval id_alias as const zstring ptr, _
 		byval isunion as integer, _
 		byval align as integer, _
 		byval base_ as FBSYMBOL ptr _
@@ -83,19 +83,19 @@ function symbStructBegin _
 	'' extending another UDT?
 	if( base_ <> NULL ) then
 		static as FBARRAYDIM dTB(0 to 0)
-		
+
 		s->udt.base = symbAddField( s, "$fb_base", 0, dTB(), FB_DATATYPE_STRUCT, base_, symbGetLen( base_ ), 0 )
-		
+
 		symbSetIsUnique( s )
 		symbNestBegin( s, FALSE )
 		symbNamespaceImportEx( base_, s )
-		
+
 		if( symbGetHasRTTI( base_ ) ) then
 			symbSetHasRTTI( s )
-		End If
+		end if
 	else
 		s->udt.base = NULL
-	End If
+	end if
 
 	function = s
 
@@ -213,6 +213,33 @@ function symbCheckBitField _
 		return FALSE
 	end select
 
+end function
+
+private function symbAddBitField _
+	( _
+		byval bitpos as integer, _
+		byval bits as integer, _
+		byval dtype as integer, _
+		byval lgt as integer _
+	) as FBSYMBOL ptr
+
+	dim as FBSYMBOL ptr sym = any
+
+	'' table must be the global one, if the UDT is been defined
+	'' at main(), it will be deleted before some private function
+	'' accessing the bitfield
+
+	sym = symbNewSymbol( FB_SYMBOPT_NONE, NULL, NULL, NULL, _
+	                     FB_SYMBCLASS_BITFIELD, NULL, NULL, dtype, NULL )
+	if( sym = NULL ) then
+		return NULL
+	end if
+
+	sym->bitfld.bitpos = bitpos
+	sym->bitfld.bits = bits
+	sym->lgt = lgt
+
+	function = sym
 end function
 
 '':::::
@@ -381,7 +408,7 @@ function symbAddField _
 
 	select case as const typeGet( dtype )
 	'' var-len string fields? must add a ctor, copyctor and dtor
-    case FB_DATATYPE_STRING
+	case FB_DATATYPE_STRING
 		'' if it's an anon udt, it or parent is an UNION
 		if( (parent->udt.options and (FB_UDTOPT_ISUNION or _
 									  FB_UDTOPT_ISANON)) <> 0 ) then
@@ -392,9 +419,15 @@ function symbAddField _
 			symbSetUDTHasPtrField( parent )
 		end if
 
-    '' struct with a ctor or dtor? must add a ctor or dtor too
-    case FB_DATATYPE_STRUCT
-		if( symbGetCompDefCtor( subtype ) <> NULL ) then
+	'' struct with a ctor or dtor? must add a ctor or dtor too
+	case FB_DATATYPE_STRUCT
+		'' Let the FB_UDTOPT_HASPTRFIELD flag propagate up to the
+		'' parent if this field has it.
+		if( symbGetUDTHasPtrField( subtype ) ) then
+			symbSetUDTHasPtrField( base_parent )
+		end if
+
+		if( symbGetHasCtor( subtype ) ) then
 			'' if it's an anon udt, it or parent is an UNION
 			if( (parent->udt.options and (FB_UDTOPT_ISUNION or _
 										  FB_UDTOPT_ISANON)) <> 0 ) then
@@ -402,7 +435,7 @@ function symbAddField _
 			else
 				symbSetUDTHasCtorField( parent )
 			end if
-    	end if
+		end if
 
 		if( symbGetHasDtor( subtype ) ) then
 			'' if it's an anon udt, it or parent is an UNION
@@ -412,13 +445,13 @@ function symbAddField _
 			else
 				symbSetUDTHasDtorField( parent )
 			end if
-    	end if
+		end if
 
 	end select
 
 	'' check pointers
 	if( typeIsPtr( dtype ) ) then
-		base_parent->udt.options or= FB_UDTOPT_HASPTRFIELD
+		symbSetUDTHasPtrField( base_parent )
 	end if
 
 	'' struct?
@@ -1012,7 +1045,10 @@ function symbGetUDTBaseLevel _
 	if( s = NULL or baseSym = NULL ) then
 		return 0
 	end if
-	
+
+	assert( symbIsStruct( s ) )
+	assert( symbIsStruct( baseSym ) )
+
 	var level = 1
 	do until( s->udt.base = NULL )
 		if( s->udt.base->subtype = baseSym ) then
@@ -1024,28 +1060,5 @@ function symbGetUDTBaseLevel _
 	Loop
 	
 	return 0
-	
-End Function
-
-'':::::
-function symbGetUDTBaseSymbol _
-	( _
-		byval s as FBSYMBOL ptr, _
-		byval baseSym as FBSYMBOL ptr _
-	) as FBSYMBOL ptr
-	
-	if( s = NULL or baseSym = NULL ) then
-		return NULL
-	end if
-	
-	do until( s->udt.base = NULL )
-		if( s->udt.base->subtype = baseSym ) then
-			return s->udt.base 
-		End If
-		
-		s = s->udt.base->subtype
-	Loop
-	
-	return NULL
 	
 End Function

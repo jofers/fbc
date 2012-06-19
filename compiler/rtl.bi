@@ -160,7 +160,6 @@
 #define FB_RTL_DATAREADUBYTE 			"fb_DataReadUByte"
 #define FB_RTL_DATAREADUSHORT 			"fb_DataReadUShort"
 #define FB_RTL_DATAREADUINT 			"fb_DataReadUInt"
-#define FB_RTL_DATAREADPTR 				"fb_DataReadPtr"
 #define FB_RTL_DATAREADULONGINT 		"fb_DataReadULongint"
 #define FB_RTL_DATAREADSINGLE 			"fb_DataReadSingle"
 #define FB_RTL_DATAREADDOUBLE 			"fb_DataReadDouble"
@@ -556,7 +555,6 @@ enum FB_RTL_IDX
 	FB_RTL_IDX_DATAREADUBYTE
 	FB_RTL_IDX_DATAREADUSHORT
 	FB_RTL_IDX_DATAREADUINT
-	FB_RTL_IDX_DATAREADPTR
 	FB_RTL_IDX_DATAREADULONGINT
 	FB_RTL_IDX_DATAREADSINGLE
 	FB_RTL_IDX_DATAREADDOUBLE
@@ -811,7 +809,7 @@ enum FB_RTL_OPT
 	FB_RTL_OPT_QBONLY	  = &h00000100                  '' -lang qb only
 	FB_RTL_OPT_NOFB		  = &h00000200                  '' anything but -lang fb
 	FB_RTL_OPT_FBONLY	  = &h00000400                  ''
- 	FB_RTL_OPT_DUPDECL	  = &h00000800 					'' overloaded procs pointing to the same symbol
+	FB_RTL_OPT_IRHLCBUILTIN   = &h00000800                  '' proc will be emitted by ir-hlc as needed, not declared as if it was a public one from rtlib
  	FB_RTL_OPT_GCCBUILTIN = &h00001000					'' GCC builtin, don't redeclare, create a wrapper
 	FB_RTL_OPT_NOGCC	  = &h00002000                  '' anything but -gen gcc
 end enum
@@ -842,8 +840,8 @@ type FB_RTL_PARAMDEF
 end type
 
 type FB_RTL_PROCDEF
-	name		as zstring ptr
-	alias		as zstring ptr
+	name		as const zstring ptr
+	alias		as const zstring ptr
 	dtype		as FB_DATATYPE
 	callconv	as FB_FUNCMODE
 	callback	as FBRTLCALLBACK
@@ -867,7 +865,7 @@ declare sub rtlAddIntrinsicProcs _
 
 declare function rtlProcLookup _
 	( _
-		byval pname as zstring ptr, _
+		byval pname as const zstring ptr, _
 		byval pidx as integer _
 	) as FBSYMBOL ptr
 
@@ -1084,14 +1082,14 @@ declare function rtlArrayRedim _
 declare function rtlArrayErase _
 	( _
 		byval arrayexpr as ASTNODE ptr, _
-		byval check_access as integer = FALSE _
+		byval check_access as integer _
 	) as ASTNODE ptr
 
 declare function rtlArrayClear _
 	( _
 		byval arrayexpr as ASTNODE ptr, _
 		byval dofill as integer, _
-		byval check_access as integer = FALSE _
+		byval check_access as integer _
 	) as ASTNODE ptr
 
 declare function rtlArrayBound _
@@ -1215,14 +1213,10 @@ declare function rtlInitMain _
 declare function rtlInitApp _
 	( _
 		byval argc as ASTNODE ptr, _
-		byval argv as ASTNODE ptr, _
-		byval isdllmain as integer _
+		byval argv as ASTNODE ptr _
 	) as ASTNODE ptr
 
-declare function rtlExitApp _
-	( _
-		byval errlevel as ASTNODE ptr _
-	) as integer
+declare function rtlExitApp( byval errlevel as ASTNODE ptr ) as integer
 
 declare function rtlMemCopy _
 	( _
@@ -1756,15 +1750,8 @@ declare function rtlGfxEvent _
 		byval is_func as integer _
 	) as ASTNODE ptr
 
-declare function rtlProfileCall_mcount _
-	( _
-		_
-	) as ASTNODE ptr
-
-declare function rtlProfileCall_monstartup _
-	( _
-		_
-	) as ASTNODE ptr
+declare function rtlProfileCall_mcount( ) as ASTNODE ptr
+declare sub rtlProfileCall_monstartup( )
 
 declare function rtlGosubPush _
 	( _

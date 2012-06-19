@@ -592,7 +592,7 @@ private function hGetVarPrefix _
 	( _
 		byval sym as FBSYMBOL ptr, _
 		byval docpp as integer _
-	) as zstring ptr
+	) as const zstring ptr
 
 	static as integer isimport = FALSE
 
@@ -642,7 +642,7 @@ end function
 private function hGetVarIdentifier _
 	( _
 		byval sym as FBSYMBOL ptr, _
-		byval id as zstring ptr, _
+		byval id as const zstring ptr, _
 		byref id_len as integer, _
 		byval suffix_len as integer _
 	) as zstring ptr static
@@ -663,7 +663,7 @@ private function hMangleVariable  _
 		byval sym as FBSYMBOL ptr _
 	) as zstring ptr static
 
-    static as zstring ptr prefix_str, nspc_str, id_str, suffix_str
+    static as const zstring ptr prefix_str, nspc_str, id_str, suffix_str
     static as integer prefix_len, nspc_len, id_len, suffix_len, docpp, isglobal
 
 	'' local? no mangling
@@ -820,7 +820,7 @@ end function
 private function hGetProcIdentifier _
 	( _
 		byval sym as FBSYMBOL ptr, _
-		byval id as zstring ptr _
+		byval id as const zstring ptr _
 	) as zstring ptr static
 
     static as string res
@@ -852,7 +852,7 @@ private function hGetProcPrefix _
 	( _
 		byval sym as FBSYMBOL ptr, _
 		byval docpp as integer _
-	) as zstring ptr static
+	) as const zstring ptr static
 
 	'' no C++? do nothing..
 	if( docpp = FALSE ) then
@@ -959,8 +959,19 @@ end function
 private function hGetOperatorName _
 	( _
 		byval proc as FBSYMBOL ptr _
-	) as zstring ptr static
+	) as const zstring ptr static
 
+	''
+	'' Most operators follow the "Operator Encodings" section of the
+	'' Itanium C++ ABI.
+	''
+	'' However, FB has some operators that C++ doesn't have, these "custom"
+	'' operators should use the predefined scheme of the ABI, to allow
+	'' C++-compatible tools to demangle them:
+	''    v <num-args> <length> <name>
+	'' where <num-args> is the operand count as a single decimal
+	'' digit, and <length> is the length of <name>.
+	''
 	select case as const symbGetProcOpOvl( proc )
 	case AST_OP_ASSIGN
 		function = @"aS"
@@ -993,10 +1004,10 @@ private function hGetOperatorName _
 		function = @"dV"
 
 	case AST_OP_INTDIV
-		function = @"Dv"
+		function = @"v24idiv"
 
 	case AST_OP_INTDIV_SELF
-		function = @"DV"
+		function = @"v28selfidiv"
 
 	case AST_OP_MOD
 		function = @"rm"
@@ -1016,17 +1027,19 @@ private function hGetOperatorName _
 	case AST_OP_OR_SELF
 		function = @"oR"
 
+	'' Note: The ANDALSO/ORELSE operators can't currently be
+	'' overloaded, much less the self versions
 	case AST_OP_ANDALSO
 		function = @"aa"
 
 	case AST_OP_ANDALSO_SELF
-		function = @"aA"
+		function = @"aA" '' FB-specific
 
 	case AST_OP_ORELSE
-		function = @"oe"
+		function = @"oo"
 
 	case AST_OP_ORELSE_SELF
-		function = @"oE"
+		function = @"oO" '' FB-specific
 
 	case AST_OP_XOR
 		function = @"eo"
@@ -1035,16 +1048,16 @@ private function hGetOperatorName _
 		function = @"eO"
 
 	case AST_OP_EQV
-		function = @"ev"
+		function = @"v23eqv"
 
 	case AST_OP_EQV_SELF
-		function = @"eV"
+		function = @"v27selfeqv"
 
 	case AST_OP_IMP
-		function = @"im"
+		function = @"v23imp"
 
 	case AST_OP_IMP_SELF
-		function = @"iM"
+		function = @"v27selfimp"
 
 	case AST_OP_SHL
 		function = @"ls"
@@ -1059,16 +1072,16 @@ private function hGetOperatorName _
 		function = @"rS"
 
 	case AST_OP_POW
-		function = @"po"
+		function = @"v23pow"
 
 	case AST_OP_POW_SELF
-		function = @"pO"
+		function = @"v27selfpow"
 
 	case AST_OP_CONCAT
-		function = @"ct"
+		function = @"v23cat"
 
 	case AST_OP_CONCAT_SELF
-		function = @"cT"
+		function = @"v27selfcat"
 
 	case AST_OP_EQ
 		function = @"eq"
@@ -1089,7 +1102,7 @@ private function hGetOperatorName _
 		function = @"le"
 
 	case AST_OP_NOT
-		function = @"nt"
+		function = @"co"
 
 	case AST_OP_NEG
 		function = @"ng"
@@ -1098,43 +1111,43 @@ private function hGetOperatorName _
 		function = @"ps"
 
 	case AST_OP_ABS
-		function = @"ab"
+		function = @"v13abs"
 
 	case AST_OP_FIX
-		function = @"fx"
+		function = @"v13fix"
 
 	case AST_OP_FRAC
-		function = @"fc"
+		function = @"v14frac"
 
 	case AST_OP_SGN
-		function = @"sg"
+		function = @"v13sgn"
 
 	case AST_OP_FLOOR
-		function = @"fl"
+		function = @"v13int"
 
 	case AST_OP_EXP
-		function = @"ex"
+		function = @"v13exp"
 
 	case AST_OP_LOG
-		function = @"lg"
+		function = @"v13log"
 
 	case AST_OP_SIN
-		function = @"sn"
+		function = @"v13sin"
 
 	case AST_OP_ASIN
-		function = @"as"
+		function = @"v14asin"
 
 	case AST_OP_COS
-		function = @"cs"
+		function = @"v13cos"
 
 	case AST_OP_ACOS
-		function = @"ac"
+		function = @"v14acos"
 
 	case AST_OP_TAN
-		function = @"tn"
+		function = @"v13tan"
 
 	case AST_OP_ATAN
-		function = @"at"
+		function = @"v13atn"
 
 	case AST_OP_NEW, AST_OP_NEW_SELF
 		function = @"nw"
@@ -1158,13 +1171,31 @@ private function hGetOperatorName _
 		function = @"ad"
 
 	case AST_OP_FOR
-		function = @"fR"
+		'' operator T.for( [ as T ] )
+		if( symbGetProcParams( proc ) = 2 ) then
+			function = @"v13for"
+		else
+			assert( symbGetProcParams( proc ) = 1 )
+			function = @"v03for"
+		end if
 
 	case AST_OP_STEP
-    	function = @"v04step"
+		'' operator T.step( [ as T ] )
+		if( symbGetProcParams( proc ) = 2 ) then
+			function = @"v14step"
+		else
+			assert( symbGetProcParams( proc ) = 1 )
+			function = @"v04step"
+		end if
 
 	case AST_OP_NEXT
-		function = @"nX"
+		'' operator T.next( as T [ , as T ] )
+		if( symbGetProcParams( proc ) = 3 ) then
+			function = @"v24next"
+		else
+			assert( symbGetProcParams( proc ) = 2 )
+			function = @"v14next"
+		end if
 
 	case AST_OP_CAST
 		static as string res
@@ -1184,7 +1215,7 @@ end function
 private function hGetCtorName _
 	( _
 		byval sym as FBSYMBOL ptr _
-	) as zstring ptr static
+	) as const zstring ptr static
 
 	'' !!!FIXME!!! g++ will emit two ctors/dtors if the base
 	'' class is virtual
@@ -1206,7 +1237,7 @@ private function hMangleProc  _
 		byval sym as FBSYMBOL ptr _
 	) as zstring ptr
 
-    dim as zstring ptr prefix_str = any, nspc_str = any, id_str = any, param_str = any, suffix_str = any
+    dim as const zstring ptr prefix_str = any, nspc_str = any, id_str = any, param_str = any, suffix_str = any
     dim as integer prefix_len = any, nspc_len = any, id_len = any, param_len = any, suffix_len = any, add_len = any
     dim as integer docpp = any
 

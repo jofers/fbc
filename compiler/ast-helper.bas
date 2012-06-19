@@ -14,62 +14,6 @@
 '' vars
 ''
 
-
-'':::::
-private function astSetBitField _
-	( _
-		byval l as ASTNODE ptr, _
-		byval r as ASTNODE ptr _
-	) as ASTNODE ptr
-
-	dim as FBSYMBOL ptr s = any
-
-	s = l->subtype
-
-	'' remap type
-	astGetFullType( l ) = symbGetFullType( s )
-	l->subtype = NULL
-
-	l = astNewBOP( AST_OP_AND, astCloneTree( l ), _
-				   astNewCONSTi( not (ast_bitmaskTB(s->bitfld.bits) shl s->bitfld.bitpos), _
-				   				 FB_DATATYPE_UINT ) )
-
-	'' make sure result will fit in destination...
-	r = astNewBOP( AST_OP_AND, r, _
-				   astNewCONSTi( ast_bitmaskTB(s->bitfld.bits), FB_DATATYPE_UINT ) )
-
-	if( s->bitfld.bitpos > 0 ) then
-		r = astNewBOP( AST_OP_SHL, r, _
-				   	   astNewCONSTi( s->bitfld.bitpos, FB_DATATYPE_UINT ) )
-	end if
-
-	function = astNewBOP( AST_OP_OR, l, r )
-
-end function
-
-'':::::
-sub astUpdateBitfieldAssignment _
-	( _
-		byref l as ASTNODE ptr, _
-		byref r as ASTNODE ptr _
-	)
-
-    dim as ASTNODE ptr lchild = any
-
-	'' handle bitfields..
-	if( l->class = AST_NODECLASS_FIELD ) then
-        lchild = astGetLeft( l )
-		if( astGetDataType( lchild ) = FB_DATATYPE_BITFIELD ) then
-			'' l is a field node, use its left child instead
-			r = astSetBitField( lchild, r )
-			'' the field node can be removed
-			astDelNode( l )
-			l = lchild
-		end if
-	end if
-
-end sub
-
 '':::::
 function astBuildVarAssign _
 	( _
@@ -223,23 +167,16 @@ function astBuildVarDtorCall _
 		case FB_DATATYPE_STRUCT ', FB_DATATYPE_CLASS
 			'' has dtor?
 			if( symbGetHasDtor( symbGetSubtype( s ) ) ) then
-                dim as FBSYMBOL ptr subtype = symbGetSubtype( s )
+				dim as FBSYMBOL ptr subtype = symbGetSubtype( s )
 
-                if( check_access ) then
-					if( symbCheckAccess( subtype, _
-										 symbGetCompDtor( subtype ) ) = FALSE ) then
+				if( check_access ) then
+					if( symbCheckAccess( symbGetCompDtor( subtype ) ) = FALSE ) then
 						errReport( FB_ERRMSG_NOACCESSTODTOR )
-                	end if
-                end if
+					end if
+				end if
 
-                function = astBuildDtorCall( subtype, _
-                							 astNewVAR( s, _
-                							 			0, _
-                							 			symbGetFullType( s ), _
-                							 			subtype ) )
-
+				function = astBuildDtorCall( subtype, astNewVAR( s, 0, symbGetFullType( s ), subtype ) )
 			end if
-
 		end select
 	end if
 
@@ -287,8 +224,7 @@ end function
 '' loops
 ''
 
-'':::::
-function astBuildForBeginEx _
+function astBuildForBegin _
 	( _
 		byval tree as ASTNODE ptr, _
 		byval cnt as FBSYMBOL ptr, _
@@ -297,99 +233,38 @@ function astBuildForBeginEx _
 	) as ASTNODE ptr
 
 	'' cnt = 0
-    tree = astNewLINK( tree, astBuildVarAssign( cnt, inivalue ) )
+	tree = astNewLINK( tree, astBuildVarAssign( cnt, inivalue ) )
 
-    '' do
-    tree = astNewLINK( tree, astNewLABEL( label ) )
-
-    function = tree
-
-end function
-
-'':::::
-sub astBuildForBegin _
-	( _
-		byval cnt as FBSYMBOL ptr, _
-		byval label as FBSYMBOL ptr, _
-		byval inivalue as integer _
-	)
-
-    astAdd( astBuildForBeginEx( NULL, cnt, label, inivalue ) )
-
-end sub
-
-'':::::
-function astBuildForEndEx _
-	( _
-		byval tree as ASTNODE ptr, _
-		byval cnt as FBSYMBOL ptr, _
-		byval label as FBSYMBOL ptr, _
-		byval stepvalue as integer, _
-		byval endvalue as ASTNODE ptr _
-	) as ASTNODE ptr
-
-	'' next
-    tree = astNewLINK( tree, astBuildVarInc( cnt, stepvalue ) )
-
-    '' next
-    tree = astNewLINK( tree, astUpdComp2Branch( astNewBOP( AST_OP_EQ, _
-    									  				   astNewVAR( cnt, _
-            										 	   			  0, _
-            										 	   			  FB_DATATYPE_INTEGER ), _
-            							  				   endvalue ), _
-            				   					label, _
-            				   					FALSE ) )
+	'' do
+	tree = astNewLINK( tree, astNewLABEL( label ) )
 
 	function = tree
-
 end function
 
-'':::::
-function astBuildForEndEx _
+function astBuildForEnd _
 	( _
 		byval tree as ASTNODE ptr, _
 		byval cnt as FBSYMBOL ptr, _
 		byval label as FBSYMBOL ptr, _
 		byval stepvalue as integer, _
-		byval endvalue as integer _
+		byval endvalue as ASTNODE ptr _
 	) as ASTNODE ptr
 
-	function = astBuildForEndEx( tree, _
-								 cnt, _
-								 label, _
-								 stepvalue, _
-								 astNewCONSTi( endvalue, FB_DATATYPE_INTEGER ) )
+	'' counter += stepvalue
+	tree = astNewLINK( tree, astBuildVarInc( cnt, stepvalue ) )
 
+	'' if( counter = endvalue ) then
+	''     goto label
+	'' end if
+	tree = astNewLINK( tree, _
+		astUpdComp2Branch( _
+			astNewBOP( AST_OP_EQ, _
+				astNewVAR( cnt, 0, FB_DATATYPE_INTEGER ), _
+				endvalue ), _
+			label, FALSE ) )
+
+	function = tree
 end function
-
-'':::::
-sub astBuildForEnd _
-	( _
-		byval cnt as FBSYMBOL ptr, _
-		byval label as FBSYMBOL ptr, _
-		byval stepvalue as integer, _
-		byval endvalue as ASTNODE ptr _
-	)
-
-    astAdd( astBuildForEndEx( NULL, cnt, label, stepvalue, endvalue ) )
-
-end sub
-
-'':::::
-sub astBuildForEnd _
-	( _
-		byval cnt as FBSYMBOL ptr, _
-		byval label as FBSYMBOL ptr, _
-		byval stepvalue as integer, _
-		byval endvalue as integer _
-	)
-
-    astBuildForEnd( cnt, _
-    				label, _
-    				stepvalue, _
-    				astNewCONSTi( endvalue, FB_DATATYPE_INTEGER ) )
-
-end sub
 
 ''
 '' calls
@@ -571,8 +446,8 @@ function astBuildImplicitCtorCall _
         return expr
 	end if
 
-    '' check visibility
-	if( symbCheckAccess( subtype, proc ) = FALSE ) then
+	'' check visibility
+	if( symbCheckAccess( proc ) = FALSE ) then
 		errReport( FB_ERRMSG_NOACCESSTOCTOR )
 	end if
 
@@ -631,34 +506,6 @@ function astBuildProcAddrof(byval proc as FBSYMBOL ptr) as ASTNODE ptr
 	symbSetIsCalled(proc)
 	function = astNewADDROF(astNewVAR(proc, 0, FB_DATATYPE_FUNCTION, proc))
 end function
-
-'':::::
-function astBuildProcBegin _
-	( _
-		byval proc as FBSYMBOL ptr _
-	) as ASTNODE ptr
-
-	dim as ASTNODE ptr n = any
-
-	n = astProcBegin( proc, FALSE )
-
-    symbSetProcIncFile( proc, env.inf.incfile )
-
-   	astAdd( astNewLABEL( astGetProcInitlabel( n ) ) )
-
-   	function = n
-
-end function
-
-'':::::
-sub astBuildProcEnd _
-	( _
-		byval n as ASTNODE ptr _
-	)
-
-	astProcEnd( n, FALSE )
-
-end sub
 
 '':::::
 function astBuildProcResultVar _
@@ -774,7 +621,8 @@ function astBuildInstPtrAtOffset _
 	dtype = symbGetFullType( sym )
 	subtype = symbGetSubtype( sym )
 
-	'' it's always a param
+	'' THIS is a BYREF AS UDT parameter, the typeAddrOf() is needed to
+	'' make the expression be an UDT PTR.
 	expr = astNewVAR( sym, 0, typeAddrOf( dtype ), subtype )
 
 	if( fld <> NULL ) then
@@ -958,13 +806,11 @@ function astBuildArrayDescIniTree _
 					   			  				  FB_DATATYPE_INTEGER ) ), _
 					   	 elm )
 
-	astTypeIniSeparator( tree, NULL )
 	elm = symbGetNext( elm )
 
 	'' .ptr	= @array(0)
 	astTypeIniAddAssign( tree, array_expr, elm )
 
-    astTypeIniSeparator( tree, NULL )
     elm = symbGetNext( elm )
 
     '' .size = len( array ) * elements( array )
@@ -973,7 +819,6 @@ function astBuildArrayDescIniTree _
     				   				   FB_DATATYPE_INTEGER ), _
     				   	 elm )
 
-    astTypeIniSeparator( tree, NULL )
     elm = symbGetNext( elm )
 
     '' .element_len	= len( array )
@@ -982,7 +827,6 @@ function astBuildArrayDescIniTree _
     				   				   FB_DATATYPE_INTEGER ), _
     				   	 elm )
 
-    astTypeIniSeparator( tree, NULL )
     elm = symbGetNext( elm )
 
     '' .dimensions = dims( array )
@@ -991,7 +835,6 @@ function astBuildArrayDescIniTree _
     				   				   FB_DATATYPE_INTEGER ), _
     				   	 elm )
 
-    astTypeIniSeparator( tree, NULL )
     elm = symbGetNext( elm )
 
     '' setup dimTB
@@ -1015,7 +858,6 @@ function astBuildArrayDescIniTree _
     				   				 		   FB_DATATYPE_INTEGER ), _
     				   		     elm )
 
-			astTypeIniSeparator( tree, NULL )
 			elm = symbGetNext( elm )
 
 			'' .lbound = lbound( array, d )
@@ -1024,7 +866,6 @@ function astBuildArrayDescIniTree _
     				   				 		   FB_DATATYPE_INTEGER ), _
     				   		     elm )
 
-			astTypeIniSeparator( tree, NULL )
 			elm = symbGetNext( elm )
 
 			'' .ubound = ubound( array, d )
@@ -1036,10 +877,6 @@ function astBuildArrayDescIniTree _
 			astTypeIniScopeEnd( tree, NULL )
 
 			d = d->next
-
-			if( d ) then
-				astTypeIniSeparator( tree, NULL )
-			end if
     	loop
 
     '' dynamic..

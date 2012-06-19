@@ -13,7 +13,14 @@ Version 0.24.0:
 - 'PALETTE index, r, g, b' now uses 8-bit precision on each color value
 - The __FB_MIN_VERSION__() macro is no longer changed to ____FB_MIN_VERSION__() for -lang qb
 - SWAP no longer accepts function calls
-- ImageCreate() will now set an runtime error code on failure ("illegal function call" or "out of memory"), which can be retrieved with Err()
+- ImageCreate() and Reset(streamno) now set the runtime error code, which can be retrieved with Err()
+- Allow CONST STRING parameters in string.bi/datetime.bi functions
+- wstring Input is now subject to the same 4096 characters length limit like the normal [z]string Input
+- #3492598: FB-only overloaded operators now use Itanium C++ ABI-compatible name mangling
+- The bitwise NOT operator is now mangled as bitwise not ('~' in C++) instead of logical negation ('!' in C++)
+- The '= ANY' intializer on variables or fields will now prevent the default constructor call (if any), instead of generating a warning message, requiring the variable or field to be initialized with an explicit constructor call. It still won't affect destructor calls though.
+- #3051592: crt/errno.bi now uses __errno_location() to access errno on Linux
+- The NAKED keyword is now disallowed under -gen gcc because gcc doesn't support naked functions on x86
 
 [added]
 - EVENT_MOUSE_HWHEEL for X11
@@ -26,6 +33,42 @@ Version 0.24.0:
 - Runtime type information (RTTI) for classes extending other classes or the new builtin OBJECT class: IF variable IS SomeClass THEN ...
 - 'fbc -static' option to tell the linker to link against static libraries if installed
 - CONST may now be specified in front of the bodies of CONST methods, not just in the declaration, same as for STATIC
+- "Real" Rnd() algorithm (activate via 'Randomize(, 5)') using Win32 Crypto APIs or Linux /dev/urandom
+- New headers for many audio-related libraries (some experimental): libsndfile 1.0.X, libVLC 1.1.x, mpg123 library, MediaInfo, PortAudio, Flite 1.4, libmodplug 0.8.8.4
+- New experimental X11 headers
+- Updated headers for GNU gettext/libintl 0.17
+- New algif and alpng headers for Allegro
+- New header for the UUID library from e2fsprogs
+- New headers for json-c
+- New headers for the GNU dbm library
+- acmStreamOpen() declaration to win/msacm.bi
+- New header file: win/ddk/mmddk.bi
+- New headers for compression and archive handling libraries: libzip 0.10, libbzip2 1.0.6, liblzma 5.0.2, zlib 1.2.6
+- Updated headers for wx-c 0.9.2
+- New headers for libjit 1.0.0 and libffi 3.0.10
+- New headers for the Chipmunk 4.1.0 physics library
+- Updated headers for CGUI 2.0.1
+- New headers for IUP 3.5
+- Updated header for SQLite3 3.7.8
+- Updated headers for OpenAL 1.13 and ALUT 1.1.0
+- Updated header for FreeImage 3.15.1
+- Updated header for QuickLZ 1.50
+- Updated header for PDcurses 3.4
+- Updated header for libcaca 0.99 beta17
+- Updated headers for OpenGL, including new freeglut headers
+- Updated header for BASS 2.4
+- Updated header for ODE 0.11.1
+- Updated header for libcurl 7.24.0
+- New header for SQLiteExtensions 3.6.23.1
+- Updated headers for GTK+ 2.24 and 3.2.2, including gdk-pixbuf 2.25.0, gtkglext 1.2.0, ATK 1.33.6, Cairo 1.10.2, Pango 1.29.5, glib 2.31.4
+- Updated header for Mini-XML 2.7 header update
+- New header for ZeroMQ 2.1.10
+- Updated header for cryptlib 3.4.1
+- Wstrings are now allowed in Print Using
+- Len(), Sizeof() and Typeof() can now be used on function calls and array accesses even if they have the same identifier as a type
+- Same type/expression disambiguation for Peek/Poke as for Len/Sizeof/Typeof
+- FIELD = N can now be used on nested anonymous TYPEs/UNIONs
+- IIF()'s with constant conditions are now evaluated at compile-time
 
 [fixed]
 - Subtracting pointers from numbers, e.g. (i-p) was being allowed, rearranging to (p-i)
@@ -67,6 +110,60 @@ Version 0.24.0:
 - GFX_SHAPED_WINDOW didn't work properly on some modern Linux systems (thanks Sisophon2001 for the fix)
 - Wrong error message when calling non-const method on const UDT
 - Shell() on Unix didn't return the proper shell exit code
+- Memory leak and possible race condition in console Line Input function
+- Infinite loop in Line Input on files opened with Encoding when reaching EOF without newline
+- Bsave()'s length parameter wasn't unsigned like in the gfxlib
+- Win32 ScreenControl GET_WINDOW_POS with minimized window could cause it to be locked up that way
+- "array too big for stack" warning was shown for static arrays
+- ScreenRes was truncating the screen's text width/height (columns/rows) to 0..255, causing incorrect Print'ing or even a division-by-zero crash during Print
+- C backend: gcc warnings about pointer assignments from BOPs
+- C backend: compiler crash on circular dependency between UDT and function pointer typedef
+- Buffer overflow in wstring Input
+- Input to dereferenced wstring ptr wasn't reading in anything
+- #3510684: Array descriptors for arrays declared inside Extern blocks weren't always given an alias name, causing the mangled name for emitting to be wrong (under C++ mangling) or empty (under all other non-default manglings)
+- #3496522: crt/sys/linux/types.bi contained wrong typedefs (int64_t being just integer etc.)
+- Missing GET/PUT "UDT with var-len fields" warning when nested UDT fields had var-len fields
+- GLUT/Windows headers compatibility issues
+- win/commctrl.bi: TabCtrl_AdjustRect() and TabCtrl_SetImageList()
+- win/winsock[2].bi: FD_CLR() macros were broken
+- C backend: procedures using Pascal were treated as Cdecl
+- C backend: Missing padding elements in multi-dimensional global array initializers
+- C backend: didn't allow float-to-Long/Ulong casts
+- C backend: float to uinteger conversions truncated to integer
+- C backend: The 'as any ptr' overloads of bin/oct/hex didn't work unless the 'as integer' versions were used in the same module
+- Wrong declarations of some the built-in wbin(), bin(), woct() overloads
+- Buffer overflow in wbin()
+- C backend: Pointer fields pointing to the parent UDT itself were always emitted as having a single PTR only, even if it was a PTR PTR etc.
+- C backend: Taking address of module-level labels was broken (used by module-level error handling code)
+- C backend: Wstring literals outside variable initializers were emitted assuming sizeof(wstring) = 2, causing buffer overflows on Linux (where sizeof(wstring) = 4)
+- C backend: wchar type didn't match gcc's, breaking global fixed-length wstring initializers
+- Unused bits (padding) in UDTs with bitfields could be left uninitialized by type initializers
+- C backend #3421351: Wrong code for bitfield assignment when the target bitfield expression had nested field accesses
+- #3509495: Delete[] on derived UDTs with destructors caused a compiler crash
+- Overload resolution treated pointer arguments as uintegers, allowing them to match integer parameters
+- Any Ptr arguments were seen as ambiguous even if there was a fully matching overload
+- #3479361: Derived UDTs were allowed to access their base UDT's private fields
+- Local arrays in methods didn't have access to private/protected destructors
+- 'LET(fields...) = UDT' in methods didn't have access to private/protected fields
+- Access to member constants wasn't always checking visibility
+- ERASE and field declarations didn't check c/dtor visibility
+- #3490779: -exx and -profile broke Naked procedures due to implicit RTL calls; now no more implicit code will be added (this change affects error handling/profiling calls for naked procedures, and member constructor/destructor calls in naked constructors/destructors)
+- Compiler crash on naked constructors/destructors
+- Early return from an UDT destructor prevented destruction of the UDT's fields
+- #3489950: BASE() disabled implicit field construction and vtbl pointer setup in constructors
+- #3479349: No error was shown when a constructor couldn't initialize the base UDT (i.e. when the base UDT didn't have a default constructor and there was no BASE() used either)
+- #3479355: POD base UDTs weren't cleared by constructors
+- #3474348: Multiple REDIMs on COMMON array were disallowed
+- #3344224: Copy constructor, Let operator and destructor were added to UDTs having field initializers but no complex fields
+- Implicit default and copy constructors (and also a Let overload and a destructor, if needed) will now be generated for derived UDTs which don't have either of them yet, if their base has a default constructor. If it has only non-default constructors, an error will be shown.
+- Derived UDT constructors could implicitly use their base UDT's private default constructor
+- #3372520, C backend: Buggy type initialization through pointers (i.e. NEW)
+- #2855461: REDIM/ERASE on an array of UDT objects with non-parameterless default constructor was allowed, causing junk to be passed to the constructor parameters as the rtlib's REDIM implementation doesn't expect having to pass arguments
+- ERASE could be used on an array of UDT objects with only non-default constructor
+- EXTERN declarations of UDT variables with only non-default constructor caused an error
+- Possible compiler crash when invoking variadic macro without specifying any argument text for the vararg ("...") parameter
+- Macro arguments can now be completely empty (no space required anymore to get it to work)
+- C backend: global constructor/destructor priorities were not emitted
 
 
 Version 0.23.0:
