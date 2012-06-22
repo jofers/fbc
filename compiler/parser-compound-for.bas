@@ -60,14 +60,12 @@ declare function hCheckAndInitializeForeachCall _
     ( _
         byval ctnexpr as ASTNODE ptr, _
         byval idexpr as ASTNODE ptr, _
-        byval stk as FB_CMPSTMTSTK ptr, _
-        byref itertype as FBSYMBOL ptr _
+        byval stk as FB_CMPSTMTSTK ptr _
     ) as integer
 declare function hIterStep _
     ( _
 		byval stk as FB_CMPSTMTSTK ptr _
     ) as integer
-
     
 ''::::
 private function hElmToExpr _
@@ -127,60 +125,53 @@ private sub hUdtStep _
     dim as ASTNODE ptr idexpr = any
     dim as ASTNODE ptr asgnexpr = any
 
-    if( stk->for.isforeach = FALSE ) then
-        '' only pass the step arg if it's an explicit step
-        if( stk->for.explicit_step ) then
-            step_expr = hElmToExpr( @stk->for.stp )
-        end if
-
-        proc = hUdtCallOpOvl( symbGetSubtype( stk->for.cnt.sym ), _
-                              AST_OP_STEP, _
-                              hElmToExpr( @stk->for.cnt ), _
-                              step_expr )
-
-        if( proc <> NULL ) then
-            astAdd( proc )
-        end if
-    else
-  		dim sym as FBSYMBOL ptr
-        dim iter_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.stp.sym ) 
-        dim id_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.cnt.sym ) 
-
-        dim iter_var as ASTNODE ptr = NULL
-
-        if( symbGetFullType( stk->for.stp.sym ) = FB_DATATYPE_ITER ) then
-            '' built-in iterator: use fibers and yield keyword
-            hIterStep( stk )
-        else
-            iter_var = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, iter_subtype )
-
-            '' count_var = *iter_var
-            if( iter_var <> NULL ) then
-                proc = astNewUOP( AST_OP_DEREF, iter_var )
-            end if
-            if( proc <> NULL ) then
-                idexpr = astNewVAR( stk->for.cnt.sym, 0, symbGetType( stk->for.cnt.sym ), id_subtype )
-            end if
-            if( idexpr <> NULL ) then
-                asgnexpr = astNewASSIGN( idexpr, proc )
-            end if
-            if( asgnexpr <> NULL ) then
-                astAdd( asgnexpr )
-            end if
-        
-            '' increment iter
-            proc = hUdtCallOpOvl( symbGetSubtype( stk->for.stp.sym ), _
-                                  AST_OP_INC_SELF, _
-                                  hElmToExpr( @stk->for.stp ), _
-                                  NULL )
-            if( proc <> NULL ) then
-                astAdd( proc )
-            end if
-        end if
+    '' only pass the step arg if it's an explicit step
+    if( stk->for.explicit_step ) then
+        step_expr = hElmToExpr( @stk->for.stp )
     end if
-                              
+
+    proc = hUdtCallOpOvl( symbGetSubtype( stk->for.cnt.sym ), _
+                          AST_OP_STEP, _
+                          hElmToExpr( @stk->for.cnt ), _
+                          step_expr )
+
+    if( proc <> NULL ) then
+        astAdd( proc )
+    end if                              
 
 end sub
+
+'':::::
+private sub hEachUdtNext _
+    ( _
+        byval stk as FB_CMPSTMTSTK ptr _
+    )
+    
+    '' FOREACH: proc = begin_iter <> end_iter
+    dim as FBSYMBOL ptr subtype = symbGetSubType( stk->for.stp.sym )
+    dim as ASTNODE ptr beginvar = NULL, endvar = NULL
+    dim as ASTNODE ptr proc
+    
+    beginvar = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, subtype )
+    if( beginvar <> NULL ) then
+        subtype = symbGetSubType( stk->for.end.sym )
+    end if
+    if( subtype <> NULL ) then
+        endvar = astNewVAR( stk->for.end.sym, 0, FB_DATATYPE_STRUCT, subtype )
+    end if
+    if( endvar <> NULL ) then
+        proc = astNewBop( AST_OP_NE, beginvar, endvar )
+    end if
+    
+    if( proc <> NULL ) then
+    	'' if proc(...) <> 0 then goto init
+    	astAdd( astNewBOP( AST_OP_NE, _
+    				   	   proc, _
+    				   	   astNewCONSTi( 0 ), _
+    				   	   stk->for.inilabel, _
+    				   	   AST_OPOPT_NONE ) )
+    end if
+end sub 
 
 '':::::
 private sub hUdtNext _
@@ -190,40 +181,16 @@ private sub hUdtNext _
 
 	dim as ASTNODE ptr proc = any, step_expr = NULL
     
-    if( stk->for.isforeach = TRUE ) then
-        if( symbGetFullType( stk->for.stp.sym ) = FB_DATATYPE_ITER ) then
-            '' built-in iterator: test is at start of loop
-            astAdd( astNewBRANCH( AST_OP_JMP, stk->for.inilabel ) )
-            exit sub
-        end if
+    '' only pass the step arg if it's an explicit step
+    if( stk->for.explicit_step ) then
+        step_expr = hElmToExpr( @stk->for.stp )
     end if
-    
-    if( stk->for.isforeach = FALSE ) then
-        '' only pass the step arg if it's an explicit step
-        if( stk->for.explicit_step ) then
-            step_expr = hElmToExpr( @stk->for.stp )
-        end if
 
-        proc = hUdtCallOpOvl( symbGetSubtype( stk->for.cnt.sym ), _
-                              AST_OP_NEXT, _
-                              hElmToExpr( @stk->for.cnt ), _
-                              hElmToExpr( @stk->for.end ), _
-                              step_expr )
-    elseif( symbGetFullType( stk->for.stp.sym ) <> FB_DATATYPE_ITER ) then
-        '' FOREACH: proc = begin_iter <> end_iter
-        dim as FBSYMBOL ptr subtype = symbGetSubType( stk->for.stp.sym )
-        dim as ASTNODE ptr beginvar = NULL, endvar = NULL
-        beginvar = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, subtype )
-        if( beginvar <> NULL ) then
-            subtype = symbGetSubType( stk->for.end.sym )
-        end if
-        if( subtype <> NULL ) then
-            endvar = astNewVAR( stk->for.end.sym, 0, FB_DATATYPE_STRUCT, subtype )
-        end if
-        if( endvar <> NULL ) then
-            proc = astNewBop( AST_OP_NE, beginvar, endvar )
-        end if
-    end if
+    proc = hUdtCallOpOvl( symbGetSubtype( stk->for.cnt.sym ), _
+                          AST_OP_NEXT, _
+                          hElmToExpr( @stk->for.cnt ), _
+                          hElmToExpr( @stk->for.end ), _
+                          step_expr )
                               
     if( proc <> NULL ) then
     	'' if proc(...) <> 0 then goto init
@@ -234,6 +201,122 @@ private sub hUdtNext _
     				   	   AST_OPOPT_NONE ) )
 	end if
 
+end sub
+
+'':::::
+private sub hEachUdtStep _
+    ( _
+		byval stk as FB_CMPSTMTSTK ptr _
+    )
+    dim sym as FBSYMBOL ptr
+    dim iter_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.stp.sym ) 
+    dim id_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.cnt.sym ) 
+
+    dim iter_var as ASTNODE ptr = NULL, proc as ASTNODE ptr = NULL
+    dim as ASTNODE ptr asgnexpr = NULL, idexpr = NULL
+
+    iter_var = astNewVAR( stk->for.stp.sym, 0, FB_DATATYPE_STRUCT, iter_subtype )
+
+    '' count_var = *iter_var
+    if( iter_var <> NULL ) then
+        proc = astNewUOP( AST_OP_DEREF, iter_var )
+    end if
+    if( proc <> NULL ) then
+        idexpr = astNewVAR( stk->for.cnt.sym, 0, symbGetType( stk->for.cnt.sym ), id_subtype )
+    end if
+    if( idexpr <> NULL ) then
+        asgnexpr = astNewASSIGN( idexpr, proc )
+    end if
+    if( asgnexpr <> NULL ) then
+        astAdd( asgnexpr )
+
+        '' increment iter
+        proc = hUdtCallOpOvl( symbGetSubtype( stk->for.stp.sym ), _
+                              AST_OP_INC_SELF, _
+                              hElmToExpr( @stk->for.stp ), _
+                              NULL )
+    end if
+                              
+    if( proc <> NULL ) then
+        astAdd( proc )
+    end if
+
+end sub
+
+'':::::
+private sub hEachIterStepNext _
+    ( _
+		byval stk as FB_CMPSTMTSTK ptr _
+    )
+
+    dim sym as FBSYMBOL ptr
+    dim yield_result_sym as FBSYMBOL ptr
+    dim yield_result_var as ASTNODE ptr
+    dim yield_branch as ASTNODE ptr
+    dim proc_call as ASTNODE ptr
+    dim iter_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.stp.sym ) 
+
+    dim iter_var as ASTNODE ptr = NULL, cnt_var as ASTNODE ptr
+    
+    '' FIBERSWITCH( iter )
+    iter_var = astNewVAR( stk->for.stp.sym, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+    if( iter_var <> NULL ) then
+        sym = rtlProcLookup( @"fiberswitch", FB_RTL_IDX_FIBERSWITCH )
+    end if
+    if( sym <> NULL ) then
+        proc_call = astNewCALL( sym )
+    end if
+    if( proc_call <> NULL ) then
+        astNewARG( proc_call, iter_var )
+        proc_call = astAdd( proc_call )
+    end if
+    
+    '' yield_result_ptr = FIBERGETYIELD( iter )
+    if( proc_call <> NULL ) then
+        sym = rtlProcLookup( @"fibergetyield", FB_RTL_IDX_FIBERGETYIELD )
+    end if
+    if( sym <> NULL ) then
+        iter_var = astNewVAR( stk->for.stp.sym, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+    end if
+    if( iter_var <> NULL ) then
+        proc_call = astNewCALL( sym )
+    end if
+    if( proc_call <> NULL ) then
+        astNewARG( proc_call, iter_var )
+        yield_result_sym = symbAddTempVar( typeAddrOf( symbGetFullType( iter_subtype ) ), symbGetSubtype( iter_subtype ), FALSE, FALSE )
+    end if
+    if( yield_result_sym <> NULL ) then
+        yield_result_var = astNewVAR( yield_result_sym, 0, symbGetFullType( yield_result_sym ), symbGetSubtype( yield_result_sym ) )
+    end if
+    if( yield_result_var <> NULL ) then
+        astAdd( astNewASSIGN( yield_result_var, proc_call ) )
+    end if
+    
+    '' if yield_result_ptr = NULL then goto endlabel
+    if( yield_result_var <> NULL ) then
+        yield_result_var = astNewVAR( yield_result_sym, 0, symbGetFullType( yield_result_sym ), symbGetSubtype( yield_result_sym ) )
+    end if
+    if( yield_result_var <> NULL ) then
+        yield_branch = astNewBOP( AST_OP_EQ, yield_result_var, astNewCONSTi( 0 ), stk->for.endlabel, AST_OPOPT_NONE )
+    end if
+    if( yield_branch <> NULL ) then
+        astAdd( yield_branch )
+    end if
+    
+    '' else count = *yield_result_var
+    if( yield_branch <> NULL ) then
+        cnt_var = astNewVAR( stk->for.cnt.sym, 0, symbGetFullType( stk->for.cnt.sym ), symbGetSubtype( stk->for.cnt.sym ) )
+    end if
+    if( cnt_var <> NULL ) then
+        yield_result_var = astNewVAR( yield_result_sym, 0, symbGetFullType( yield_result_sym ), symbGetSubtype( yield_result_sym ) )
+    end if
+    if( yield_result_var <> NULL ) then
+        yield_result_var = astNewDEREF( yield_result_var )
+    end if
+    if( yield_result_var <> NULL ) then
+        astAdd( astNewASSIGN( cnt_var, yield_result_var ) )
+    end if
+        
 end sub
 
 '':::::
@@ -836,6 +919,8 @@ function cForStmtBegin _
 	'' ID
 	dim as FBSYMCHAIN ptr chain_ = any
 	dim as FBSYMBOL ptr base_parent = any
+    dim as ASTNODE ptr ctnexpr = any
+    dim as FB_DATATYPE itertype
 
 	chain_ = cIdentifier( base_parent, FB_IDOPT_ISDECL or FB_IDOPT_DEFAULT )
 
@@ -895,18 +980,17 @@ function cForStmtBegin _
 		errReport( FB_ERRMSG_CONSTANTCANTBECHANGED )
 	end if
 
-	select case as const dtype
-	case FB_DATATYPE_BYTE to FB_DATATYPE_DOUBLE
+    if( keywd = FB_TK_FOR ) then
+        select case as const dtype
+        case FB_DATATYPE_BYTE to FB_DATATYPE_DOUBLE
 
-	case FB_DATATYPE_STRUCT ', FB_DATATYPE_CLASS
-		flags or= FOR_ISUDT
-		if( symbGetHasCtor( symbGetSubtype( astGetSymbol( idexpr ) ) ) ) then
-			flags or= FOR_HASCTOR
-		end if
-        
-	case else
-        if( keywd = FB_TK_FOR ) then
-
+        case FB_DATATYPE_STRUCT ', FB_DATATYPE_CLASS
+            flags or= FOR_ISUDT
+            if( symbGetHasCtor( symbGetSubtype( astGetSymbol( idexpr ) ) ) ) then
+                flags or= FOR_HASCTOR
+            end if
+            
+        case else
             '' not a ptr?
             if( typeIsPtr( dtype ) = FALSE ) then
                 errReport( FB_ERRMSG_EXPECTEDSCALAR, TRUE )
@@ -915,9 +999,9 @@ function cForStmtBegin _
                 idexpr = CREATEFAKEID( )
                 dtype = astGetDataType( idexpr )
             end if
-        end if
-	end select
-
+        end select
+    end if
+        
     '' push a FOR context
 	dim as FB_CMPSTMTSTK ptr stk = cCompStmtPush( FB_TK_FOR )
 
@@ -928,7 +1012,7 @@ function cForStmtBegin _
 	dim as integer isconst = 0
     
 	'' labels
-    dim as FBSYMBOL ptr il = any, tl = any, el = any, cl = any
+    dim as FBSYMBOL ptr il = any, tl = NULL, el = any, cl = NULL
     
     if( keywd = FB_TK_FOR ) then
         '' =
@@ -939,17 +1023,14 @@ function cForStmtBegin _
 
         '' STEP
         hForStep( stk, isconst, dtype, subtype, flags )
-        
-        '' test label: jump to the bottom of the for,
-        '' before any code within the block is executed
-        tl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
-        
-        '' comp and end label (will be used by any CONTINUE/EXIT FOR)
-        cl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
-        el = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+
+        '' determine type of for loop
+        if( ( flags and FOR_ISUDT ) <> 0 ) then
+            stk->for.class_ = FB_CMPSTMT_FOR_UDT
+        else
+            stk->for.class_ = FB_CMPSTMT_FOR_SCALAR
+        end if
     else
-        stk->for.isforeach = TRUE
-    
         '' IN
         if( lexGetToken( ) <> FB_TK_IN ) then
             errReport( FB_ERRMSG_EXPECTEDIN, TRUE )
@@ -957,14 +1038,86 @@ function cForStmtBegin _
         lexSkipToken( )
         
         '' Get object or iterator
-        dim as ASTNODE ptr ctnexpr = cExpression( )
+        ctnexpr = cExpression( )
         if ( ctnexpr = NULL ) then
             errReport( FB_ERRMSG_EXPECTEDEXPRESSION )
         end if
         
-        '' valid foreach iterator object?
-        dim as FBSYMBOL ptr itertype
+        '' determine type of foreach loop
         if( astGetFullType( ctnexpr ) = FB_DATATYPE_ITER ) then
+            stk->for.class_ = FB_CMPSTMT_FOR_EACH_ITER
+        else
+            stk->for.class_ = FB_CMPSTMT_FOR_EACH_UDT
+        end if
+    end if
+
+    '' start and end label (will be used by any EXIT FOR)
+	il = symbAddLabel( NULL )
+    el = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+    
+    '' we need to "peek" at the end label,
+    '' to allow an overloaded FOR operator to jump to it,
+    '' if the operator returns FALSE
+	stk->for.endlabel = el
+    
+    select case( stk->for.class_ )
+        case FB_CMPSTMT_FOR_SCALAR
+            '' comp/end label (will be used by any CONTINUE/EXIT FOR)
+            tl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+            cl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+            
+            '' if inic, endc and stepc are all constants,
+            '' check if this test is needed
+            if( isconst = 3 ) then
+                expr = astNewBOP( iif( stk->for.ispos.value.int, AST_OP_LE, AST_OP_GE ), _
+                                  astNewCONST( @stk->for.cnt.value, stk->for.cnt.dtype ), _
+                                  astNewCONST( @stk->for.end.value, stk->for.end.dtype ) )
+
+                if( astGetValInt( expr ) = FALSE ) then
+                    astAdd( astNewBRANCH( AST_OP_JMP, el ) )
+                end if
+
+                astDelNode( expr )
+            else 
+                astAdd( astNewBRANCH( AST_OP_JMP, tl ) )
+            end if
+            
+            '' top of loop
+            astAdd( astNewLABEL( il ) )
+           
+        case FB_CMPSTMT_FOR_UDT
+            '' comp/end label (will be used by any CONTINUE/EXIT FOR)
+            tl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+            cl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+
+            '' call FOR operator to initialize
+            hUdtFor( stk )
+            
+            '' branch to test
+            astAdd( astNewBRANCH( AST_OP_JMP, tl ) )
+            
+            '' top of loop
+            astAdd( astNewLABEL( il ) )
+            
+        case FB_CMPSTMT_FOR_EACH_UDT
+            '' comp label (will be used by CONTINUE FOR)
+            cl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
+        
+            '' C-style UDT iterators: check criteria
+            if( hCheckAndInitializeForeachCall( ctnexpr, idexpr, stk ) = 0 ) then
+                errReport( FB_ERRMSG_TYPEMISMATCH )
+            end if
+            
+            '' branch to test
+            astAdd( astNewBRANCH( AST_OP_JMP, cl ) )
+            
+            '' top of loop
+            astAdd( astNewLABEL( il ) )
+
+            '' step after test passes       
+            hEachUdtStep( stk )
+
+        case FB_CMPSTMT_FOR_EACH_ITER
             '' built-in iterators: only requires variable to store iterator expression
             dim ctnsubtype as FBSYMBOL ptr = symbGetSubtype( ctnexpr )
             dim iter_var as ASTNODE ptr
@@ -974,66 +1127,19 @@ function cForStmtBegin _
             if( iter_var <> NULL ) then
                 astAdd( astNewASSIGN( iter_var, ctnexpr ) )
             end if
-        else
-            '' C-style UDT iterators: check criteria
-            if( hCheckAndInitializeForeachCall( ctnexpr, idexpr, stk, itertype ) = 0 ) then
-                errReport( FB_ERRMSG_TYPEMISMATCH )
-            end if
-        end if
-        
-        '' comp and end label (will be used by any CONTINUE/EXIT FOR)
-        '' since we're moving the increment to the top of loop, no need for separate tl
-        cl = symbAddLabel( NULL, FB_SYMBOPT_NONE )
-        el = symbAddLabel( NULL, FB_SYMBOPT_NONE )
-        tl = cl
-    end if
+            
+            '' top of loop
+            astAdd( astNewLABEL( il ) )
 
-    '' we need to "peek" at the end label,
-    '' to allow an overloaded FOR operator to jump to it,
-    '' if the operator returns FALSE
-	stk->for.endlabel = el
-
-    if( keywd = FB_TK_FOR ) then
-        '' FOR: UDT? must call the FOR operator..
-        if( (flags and FOR_ISUDT) <> 0 ) then
-            hUdtFor( stk )
-        end if
-
-        '' if inic, endc and stepc are all constants,
-        '' check if this branch is needed
-        if( isconst = 3 ) then
-            expr = astNewBOP( iif( stk->for.ispos.value.int, AST_OP_LE, AST_OP_GE ), _
-                              astNewCONST( @stk->for.cnt.value, stk->for.cnt.dtype ), _
-                              astNewCONST( @stk->for.end.value, stk->for.end.dtype ) )
-
-            if( astGetValInt( expr ) = FALSE ) then
-                astAdd( astNewBRANCH( AST_OP_JMP, el ) )
-            end if
-
-            astDelNode( expr )
-
-        else
-            astAdd( astNewBRANCH( AST_OP_JMP, tl ) )
-        end if
-    else
-        '' FOREACH: branch required
-        astAdd( astNewBRANCH( AST_OP_JMP, tl ) )
-    end if
-    
-	'' add start label
-	il = symbAddLabel( NULL )
-	astAdd( astNewLABEL( il ) )
-    
-    '' FOREACH: Step at start of loop
-    if( keywd = FB_TK_FOREACH ) then
-        hUdtStep( stk )
-    end if
+            '' step, and result is test 
+            hEachIterStepNext( stk )
+    end select
 
 	'' push to stmt stack
 	stk->scopenode = astScopeBegin( )
 	stk->for.outerscopenode = outerscopenode
-	stk->for.testlabel = tl
 	stk->for.inilabel = il
+	stk->for.testlabel = tl
 	stk->for.cmplabel = cl
 
 	function = TRUE
@@ -1147,38 +1253,47 @@ private sub hForStmtClose(byval stk as FB_CMPSTMTSTK ptr)
 	if( stk->scopenode <> NULL ) then
 		astScopeEnd( stk->scopenode )
 	end if
+    
+    select case stk->for.class_ 
+        case FB_CMPSTMT_FOR_SCALAR
+            '' emit cmp label
+            astAdd( astNewLABEL( stk->for.cmplabel ) )        
 
-	'' cmp label
-	astAdd( astNewLABEL( stk->for.cmplabel ) )
+            '' update
+            hScalarStep( stk )
+            
+            '' emit test label
+            astAdd( astNewLABEL( stk->for.testlabel ) )
+            
+            '' check
+            hScalarNext( stk )
+            
+        case FB_CMPSTMT_FOR_UDT
+            '' emit cmp label
+            astAdd( astNewLABEL( stk->for.cmplabel ) )        
 
-    if( stk->for.isforeach = TRUE ) then
-        '' step is at top of loop
-        hUdtNext( stk )
-    else
-        '' UDT?
-        select case symbGetType( stk->for.cnt.sym )
-        case FB_DATATYPE_STRUCT ', FB_DATATYPE_CLASS
             '' update
             hUdtStep( stk )
-
+            
             '' emit test label
             astAdd( astNewLABEL( stk->for.testlabel ) )
 
             '' check
             hUdtNext( stk )
-
-        case else
-            '' update
-            hScalarStep( stk )
-
-            '' emit test label
-            astAdd( astNewLABEL( stk->for.testlabel ) )
-
-            '' check
-            hScalarNext( stk )
-        end select
-    end if
+            
+        case FB_CMPSTMT_FOR_EACH_UDT
+            '' emit cmp label
+            astAdd( astNewLABEL( stk->for.cmplabel ) )        
         
+            '' check
+            hEachUdtNext( stk )
+
+        case FB_CMPSTMT_FOR_EACH_ITER
+            '' jump to top
+            astAdd( astNewBRANCH( AST_OP_JMP, stk->for.inilabel ) )
+
+    end select
+
 	'' end label (loop exit)
 	astAdd( astNewLABEL( stk->for.endlabel ) )
 
@@ -1263,10 +1378,10 @@ function hCheckAndInitializeForeachCall _
     ( _
         byval ctnexpr as ASTNODE ptr, _
         byval idexpr as ASTNODE ptr, _
-        byval stk as FB_CMPSTMTSTK ptr, _
-        byref itertype as FBSYMBOL ptr _
+        byval stk as FB_CMPSTMTSTK ptr _
     ) as integer
     
+    dim as FBSYMBOL ptr itertype = NULL
     dim as FBSYMBOL ptr beginmethod = NULL
     dim as FBSYMBOL ptr endingmethod = NULL
     dim as integer result = TRUE
@@ -1476,79 +1591,4 @@ function hIterIsForeachCompatible _
     
 end function 
 
-function hIterStep _
-    ( _
-		byval stk as FB_CMPSTMTSTK ptr _
-    ) as integer
 
-    dim sym as FBSYMBOL ptr
-    dim yield_result_sym as FBSYMBOL ptr
-    dim yield_result_var as ASTNODE ptr
-    dim yield_branch as ASTNODE ptr
-    dim proc_call as ASTNODE ptr
-    dim iter_subtype as FBSYMBOL ptr = symbGetSubType( stk->for.stp.sym ) 
-
-    dim iter_var as ASTNODE ptr = NULL, cnt_var as ASTNODE ptr
-    function = false
-    
-    '' step into fiber to get value
-    iter_var = astNewVAR( stk->for.stp.sym, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
-    if( iter_var <> NULL ) then
-        sym = rtlProcLookup( @"fiberswitch", FB_RTL_IDX_FIBERSWITCH )
-    end if
-    if( sym <> NULL ) then
-        proc_call = astNewCALL( sym )
-    end if
-    if( proc_call <> NULL ) then
-        astNewARG( proc_call, iter_var )
-        proc_call = astAdd( proc_call )
-    end if
-    
-    '' get yield result in a temporary variable
-    if( proc_call <> NULL ) then
-        sym = rtlProcLookup( @"fibergetyield", FB_RTL_IDX_FIBERGETYIELD )
-    end if
-    if( sym <> NULL ) then
-        iter_var = astNewVAR( stk->for.stp.sym, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
-    end if
-    if( iter_var <> NULL ) then
-        proc_call = astNewCALL( sym )
-    end if
-    if( proc_call <> NULL ) then
-        astNewARG( proc_call, iter_var )
-        yield_result_sym = symbAddTempVar( typeAddrOf( symbGetFullType( iter_subtype ) ), symbGetSubtype( iter_subtype ), FALSE, FALSE )
-    end if
-    if( yield_result_sym <> NULL ) then
-        yield_result_var = astNewVAR( yield_result_sym, 0, symbGetFullType( yield_result_sym ), symbGetSubtype( yield_result_sym ) )
-    end if
-    if( yield_result_var <> NULL ) then
-        astAdd( astNewASSIGN( yield_result_var, proc_call ) )
-    end if
-    
-    '' if the yield is NULL, then iterator function has exited
-    if( yield_result_var <> NULL ) then
-        yield_result_var = astNewVAR( yield_result_sym, 0, symbGetFullType( yield_result_sym ), symbGetSubtype( yield_result_sym ) )
-    end if
-    if( yield_result_var <> NULL ) then
-        yield_branch = astNewBOP( AST_OP_EQ, yield_result_var, astNewCONSTi( 0 ), stk->for.endlabel, AST_OPOPT_NONE )
-    end if
-    if( yield_branch <> NULL ) then
-        astAdd( yield_branch )
-    end if
-    
-    '' else, count = *yield_result_var
-    if( yield_branch <> NULL ) then
-        cnt_var = astNewVAR( stk->for.cnt.sym, 0, symbGetFullType( stk->for.cnt.sym ), symbGetSubtype( stk->for.cnt.sym ) )
-    end if
-    if( cnt_var <> NULL ) then
-        yield_result_var = astNewVAR( yield_result_sym, 0, symbGetFullType( yield_result_sym ), symbGetSubtype( yield_result_sym ) )
-    end if
-    if( yield_result_var <> NULL ) then
-        yield_result_var = astNewDEREF( yield_result_var )
-    end if
-    if( yield_result_var <> NULL ) then
-        astAdd( astNewASSIGN( cnt_var, yield_result_var ) )
-        function = true
-    end if
-        
-end function

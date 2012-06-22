@@ -406,7 +406,7 @@ function symbMangleType _
         '' use a vender defined type qualifier
         sig = "U6FBITER" 
         sig += symbMangleType( symbGetFullType( subtype ), symbGetSubtype( subtype ) )
-
+        
 	case else
 		'' builtin?
 		if( typeGet( dtype ) = dtype ) then
@@ -440,7 +440,7 @@ function symbMangleType _
 			sig += symbMangleType( typeDeref( dtype ), subtype )
 
 		'' const..
-		else
+		elseif( typeIsConst( dtype ) ) then
 			'' note: nothing is added (as in C++) because it's not a 'const ptr'
 			sig += symbMangleType( typeUnsetIsConst( dtype ), subtype )
 
@@ -1004,7 +1004,7 @@ private function hGetOperatorName _
 		function = @"dV"
 
 	case AST_OP_INTDIV
-		function = @"v24idiv"
+		function = @"v21idiv"
 
 	case AST_OP_INTDIV_SELF
 		function = @"v28selfidiv"

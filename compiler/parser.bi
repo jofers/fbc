@@ -18,6 +18,13 @@ enum FB_CMPSTMT_MASK
 	FB_CMPSTMT_MASK_DEFAULT		= FB_CMPSTMT_MASK_CODE
 end enum
 
+enum FB_CMPSTMT_FOR_CLASS
+    FB_CMPSTMT_FOR_SCALAR       '' for i = a to b
+    FB_CMPSTMT_FOR_UDT          '' for obj = a to b
+    FB_CMPSTMT_FOR_EACH_UDT     '' foreach i in obj
+    FB_CMPSTMT_FOR_EACH_ITER    '' foreach i in iter()
+end enum
+
 '' compound statements stats
 type FB_CMPSTMTSTK_ as FB_CMPSTMTSTK
 
@@ -48,13 +55,13 @@ type FB_CMPSTMT_FOR
 	stp				as FB_CMPSTMT_FORELM
     container       as FB_CMPSTMT_FORELM
 	ispos			as FB_CMPSTMT_FORELM
-	testlabel		as FBSYMBOL ptr
 	inilabel		as FBSYMBOL ptr
 	cmplabel		as FBSYMBOL ptr
 	endlabel		as FBSYMBOL ptr
+	testlabel		as FBSYMBOL ptr
 	last			as FB_CMPSTMTSTK_ ptr
 	explicit_step   as integer
-    isforeach       as integer
+    class_          as FB_CMPSTMT_FOR_CLASS
 end type
 
 type FB_CMPSTMT_IF
