@@ -2305,6 +2305,12 @@ function hBuildArgFunnelDefinition(  _
             if( symbGetParamOptExpr( param_proc ) <> NULL ) then
                 optexpr = astCloneTree( symbGetParamOptExpr( param_proc ) )
             end if
+            
+            '' temporary allocators for byref literal strings are destroyed after the original call
+            dim as FB_PARAMMODE mode = symbGetParamMode( param_proc )
+            if( mode = FB_PARAMMODE_BYREF and symbGetFullType( param_proc ) = FB_DATATYPE_STRING ) then
+                mode = FB_PARAMMODE_BYVAL
+            end if
         
             param_funnel = symbAddProcParam(    _
                 funnel_proc,                    _
@@ -2312,7 +2318,7 @@ function hBuildArgFunnelDefinition(  _
                 symbGetFullType( param_proc ),  _
                 symbGetSubType( param_proc ),   _
                 symbGetLen( param_proc ),       _
-                symbGetParamMode( param_proc ), _
+                mode,                           _
                 symbGetAttrib( param_proc ),    _
                 optexpr                         _
             )
@@ -2401,17 +2407,37 @@ sub hBuildArgFunnelEntry(  _
 	stk->proc.endlabel = astGetProcExitlabel( ast.proc.curr )
 end sub
 
+private function hParamStackSize( _
+    byval proc as FBSYMBOL ptr _
+    ) as uinteger
+    
+    dim as FBSYMBOL ptr param = symbGetProcFirstParam( proc )
+    dim as uinteger stack_size = 0
+    for i as integer = 1 to symbGetProcParams( proc )
+        if( ( symbGetFullType( param ) = FB_DATATYPE_STRUCT ) and _
+            ( symbGetParamMode( param ) = FB_PARAMMODE_BYVAL ) ) then
+            stack_size += FB_ROUNDLEN( symbGetLen( symbGetSubtype( param ) ) )
+        else
+            stack_size += FB_ROUNDLEN( symbGetLen( param ) )
+        end if
+        param = symbGetProcNextParam( proc, param )
+    next i
+    
+    return stack_size
+end function
+
 function hBuildArgScatter(     _
     byval proc as FBSYMBOL ptr, _
     byval is_nested_in as integer _
 ) as FBSYMBOL ptr
     dim as string name_scatter
-    dim as FBSYMBOL ptr proc_scatter, proc_symbol
+    dim as FBSYMBOL ptr proc_scatter, proc_symbol, proc_callbyproxy
     dim as FBSYMCHAIN ptr chain_scatter
     dim as FBSYMBOL ptr param, param_heap
     dim as ASTNODE ptr call_node, rhs
     dim as integer offset   
     dim as integer is_nested
+    dim as integer stack_size
     is_nested = is_nested_in
     function = NULL
     
@@ -2430,41 +2456,102 @@ function hBuildArgScatter(     _
             is_nested = hDoNesting( symbGetParent( proc ) )
         end if
     end if
-    
-    '' call original procedure
     hBuildArgFunnelEntry( proc_scatter, is_nested )
+    
+    '' Calculate stack size
+    stack_size = hParamStackSize( proc )
+    
+    '' call original procedure by proxy
     param_heap = symbGetProcFirstParam( proc_scatter )
-    call_node = astNewCALL( proc )
+    proc_callbyproxy = rtlProcLookup( @"callbyproxy", FB_RTL_IDX_CALLBYPROXY )
+    call_node = astNewCALL( proc_callbyproxy )
     
-    '' get heaped arguments    
-    param = symbGetProcLastParam( proc )
-    offset = 0
-    for i as integer = 1 to symbGetProcParams( proc )
-        dim as FB_DATATYPE dtype
-        dim as FBSYMBOL ptr subtype
-        dtype = symbGetFullType( param )
-        subtype = symbGetSubtype( param )
-        if( symbGetParamMode( param ) = FB_PARAMMODE_BYREF ) then
-            dtype = typeAddrOf( dtype )
-        end if
-        
-        rhs = astNewVAR( symbGetParamVar( param_heap ), 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
-        rhs = astNewBOP( AST_OP_ADD, rhs, astNewCONSTi( offset ) )
-        rhs = astNewCONV( typeAddrOf( dtype ), subtype, rhs )
-        rhs = astNewDEREF( rhs )
-        
-        if( symbGetParamMode( param ) = FB_PARAMMODE_BYREF ) then
-            astNewARG( call_node, rhs, , FB_PARAMMODE_BYVAL )
-        else
-            astNewARG( call_node, rhs )
-        end if
-
-        offset += symbGetLen( param )
-        param = symbGetProcPrevParam( proc, param )
-    next i
+    '' pass pointer to function
+    rhs = astBuildProcAddrof(proc)
+    rhs = astNewCONV( typeAddrOf( FB_DATATYPE_VOID ), NULL, rhs )
+    astNewARG( call_node, rhs )
     
+    '' pass 0 if caller unrolls stack, 1 if callee unrolls stack
+    dim as FB_FUNCMODE mode = symbGetProcMode(proc)
+    if( mode = FB_USE_FUNCMODE_FBCALL ) then
+        mode = env.target.fbcall
+    end if    
+    select case mode
+        case FB_FUNCMODE_CDECL
+            astNewARG( call_node, astNewCONSTi( 1 ) )
+        case else
+            astNewARG( call_node, astNewCONSTi( 0 ) )
+    end select
+    
+    '' pass stack data
+    rhs = astNewVAR( symbGetParamVar( param_heap ), 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+    astNewARG( call_node, rhs )
+    
+    '' pass stack size
+    astNewARG( call_node, astNewCONSTi( stack_size ) )
     astAdd( call_node )
     
+    '' If pascal mode, we start from the tail of the stack
+    ' offset = 0
+    ' if( symbGetProcMode(proc) = FB_FUNCMODE_PASCAL )then
+        ' param = symbGetProcFirstParam( proc )
+        ' for i as integer = 1 to symbGetProcParams( proc )
+            ' if( ( symbGetFullType( param ) = FB_DATATYPE_STRUCT ) and ( symbGetParamMode( param ) = FB_PARAMMODE_BYVAL ) ) then
+                ' offset += symbGetLen( symbGetSubtype( param ) )
+            ' else
+                ' offset += symbGetLen( param )
+            ' end if
+            ' if( (offset and 3) > 0 )then
+                ' offset += (4 - (offset and 3))
+            ' end if
+            ' param = symbGetProcNextParam( proc, param )
+        ' next i
+    ' end if
+        
+    '' get heaped arguments    
+    ' param = symbGetProcHeadParam( proc )
+    ' for i as integer = 1 to symbGetProcParams( proc )
+        ' dim as FB_DATATYPE dtype
+        ' dim as FBSYMBOL ptr subtype
+        ' dim as integer argsize
+        
+        ' dtype = symbGetFullType( param )
+        ' subtype = symbGetSubtype( param )
+
+        ' select case symbGetParamMode( param )
+            ' case FB_PARAMMODE_BYDESC, FB_PARAMMODE_BYREF
+                ' dtype = typeAddrOf( dtype )
+        ' end select 
+        
+        ' if( ( symbGetFullType( param ) = FB_DATATYPE_STRUCT ) and ( symbGetParamMode( param ) = FB_PARAMMODE_BYVAL ) ) then
+            ' argsize = symbGetLen( symbGetSubtype( param ) )
+        ' else
+            ' argsize = symbGetLen( param )
+        ' end if
+        ' if( (argsize and 3) > 0 )then
+            ' argsize += (4 - (argsize and 3))
+        ' end if
+        
+        ' if( symbGetProcMode(proc) = FB_FUNCMODE_PASCAL )then
+            ' offset -= argsize
+        ' end if
+        
+        ' rhs = astNewVAR( symbGetParamVar( param_heap ), 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
+        ' rhs = astNewBOP( AST_OP_ADD, rhs, astNewCONSTi( offset ) )
+        ' rhs = astNewCONV( typeAddrOf( dtype ), subtype, rhs )
+        ' rhs = astNewDEREF( rhs )
+        ' astNewARG( call_node, rhs, , FB_PARAMMODE_BYVAL )
+        
+        ' if( symbGetProcMode(proc) <> FB_FUNCMODE_PASCAL )then
+            ' offset += argsize
+        ' end if
+        
+        ' param = param->next
+    ' next i
+    
+    ' astAdd( call_node )
+    
+   
     '' free argument heap
     proc_symbol = rtlProcLookup( "deallocate", FB_RTL_IDX_DEALLOCATE )
     call_node = astNewCALL( proc_symbol )
@@ -2519,12 +2606,7 @@ function hBuildArgFunnel(          _
     hBuildArgFunnelEntry( proc_funnel, is_nested )
     
     '' Calculate stack size
-    param = symbGetProcFirstParam( proc_funnel )
-    stack_size = 0
-    for i as integer = 1 to symbGetProcParams( proc_funnel )
-        stack_size += symbGetLen( param )
-        param = symbGetProcNextParam( proc_funnel, param )
-    next i
+    stack_size = hParamStackSize( proc )
     
     '' dim arg_heap as any ptr = allocate( sizeof( params ) )
     param_heap = symbAddTempVar( typeAddrOf( FB_DATATYPE_VOID ), NULL, FALSE, FALSE )
@@ -2545,24 +2627,7 @@ function hBuildArgFunnel(          _
     lhs = astNewCONV( typeAddrOf( FB_DATATYPE_BYTE ), NULL, lhs )
     lhs = astNewDEREF( lhs )
     astAdd( rtlMemCopy( lhs, rhs, stack_size ) )
-    
-    '' Debug
-    /'
-    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "" ) )
-    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "START STACK DUMP" ) )
-    for i as integer = 1 to stack_size
-        rhs = astNewVAR( param_heap, 0, typeAddrOf( FB_DATATYPE_VOID ), NULL )
-        rhs = astNewCONV( typeAddrOf( FB_DATATYPE_UBYTE ), NULL, rhs )
-        rhs = astNewBOP( AST_OP_ADD, rhs, astNewCONSTi( i-1 ) )
-        rhs = astNewDEREF( rhs )
-        rtlPrint( NULL, FALSE, TRUE, rhs )
-        rtlPrint( NULL, FALSE, TRUE, astNewCONSTstr( " " ) )
-    next i
-    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "" ) )
-    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "END STACK DUMP" ) )
-    rtlPrint( NULL, FALSE, FALSE, astNewCONSTstr( "" ) )
-    '/
-    
+        
     '' Create iterator's fiber
     proc_symbol = rtlProcLookup( @"fb_FiberIterCreate", FB_RTL_IDX_FIBERITERCREATE )
     call_node = astNewCALL( proc_symbol )
@@ -2610,3 +2675,4 @@ function hBuildArgFunnelExit (  ) as integer
     function = TRUE
     exit function
 end function
+

@@ -841,7 +841,7 @@ private function hCheckUDTParam _
 end function
 
 '':::::
-private function hCheckParam _
+function hCheckParam _
 	( _
 		byval parent as ASTNODE ptr, _
 		byval param as FBSYMBOL ptr, _

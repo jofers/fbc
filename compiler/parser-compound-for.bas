@@ -1008,6 +1008,7 @@ function cForStmtBegin _
 	'' extract counter variable from the expression
 	stk->for.cnt.sym = astGetSymbol( idexpr )
 	stk->for.cnt.dtype = dtype
+    stk->for.class_ = FB_CMPSTMT_FOR_INVALID
 
 	dim as integer isconst = 0
     
@@ -1046,9 +1047,13 @@ function cForStmtBegin _
         '' determine type of foreach loop
         if( astGetFullType( ctnexpr ) = FB_DATATYPE_ITER ) then
             stk->for.class_ = FB_CMPSTMT_FOR_EACH_ITER
-        else
+        elseif( astGetFullType( ctnexpr ) = FB_DATATYPE_STRUCT ) then
             stk->for.class_ = FB_CMPSTMT_FOR_EACH_UDT
         end if
+    end if
+    
+    if( stk->for.class_ = FB_CMPSTMT_FOR_INVALID ) then
+        errReport( FB_ERRMSG_UDTNOTFOREACHCOMPATIBLE, TRUE )
     end if
 
     '' start and end label (will be used by any EXIT FOR)

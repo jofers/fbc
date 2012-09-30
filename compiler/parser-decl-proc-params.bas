@@ -516,6 +516,14 @@ private function hParamDecl _
     if( isproto ) then
     	id = NULL
     end if
+    
+    if( symbGetAttrib(proc) and FB_SYMBATTRIB_ITERATOR ) then
+        '' because of some race conditions resulting from temporary string allocation,
+        '' all strings passed to iterators should be byval
+        if( dtype = FB_DATATYPE_STRING and mode = FB_PARAMMODE_BYREF ) then
+            mode = FB_PARAMMODE_BYVAL
+        end if
+    end if
 
 	s = symbAddProcParam( proc, id, dtype, subtype, param_len, mode, attrib, optval )
 

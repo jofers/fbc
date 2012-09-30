@@ -19,6 +19,7 @@ enum FB_CMPSTMT_MASK
 end enum
 
 enum FB_CMPSTMT_FOR_CLASS
+    FB_CMPSTMT_FOR_INVALID      '' can't iterate expression
     FB_CMPSTMT_FOR_SCALAR       '' for i = a to b
     FB_CMPSTMT_FOR_UDT          '' for obj = a to b
     FB_CMPSTMT_FOR_EACH_UDT     '' foreach i in obj

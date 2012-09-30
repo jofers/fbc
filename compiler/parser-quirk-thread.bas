@@ -116,15 +116,36 @@ function cYieldStmt( ) as integer
     dtype = symbGetFullType( proc_iter )
     subtype = symbGetSubtype( proc_iter )
     
-    '' convert expression to iter type to catch type mismatch
-    expr = astNewCONV( dtype, subtype, expr )
-    if( expr = NULL ) then
- 		errReport( FB_ERRMSG_TYPEMISMATCH, TRUE )
-        exit function
+    '' numerical, incompatible type?  Attempt to cast
+    dim as integer exprIsNumerical = FALSE, iterIsNumerical = FALSE
+    select case typeGetClass( dtype )
+        case FB_DATACLASS_INTEGER, FB_DATACLASS_FPOINT
+            iterIsNumerical = TRUE
+    end select
+    select case astGetDataClass( expr )
+        case FB_DATACLASS_INTEGER, FB_DATACLASS_FPOINT
+            exprIsNumerical = TRUE
+    end select
+    if(( exprIsNumerical = TRUE and iterIsNumerical = TRUE ) and _
+       ( dtype <> astGetFullType( expr ) ) and _
+       (( subtype = NULL ) and ( astGetSubType( expr ) = NULL ))) then
+        '' create variable, store expr casted to iter type
+        dim as FBSYMBOL ptr symb
+        dim as ASTNODE ptr rhs, lhs
+        symb = symbAddTempVar( dtype, NULL, FALSE, FALSE )
+        lhs = astNewVAR( symb, 0, dtype, NULL )
+        rhs = astNewCONV( dtype, NULL, expr )
+        astAdd( astNewASSIGN( lhs, rhs ))
+        expr = astNewVAR( symb, 0, dtype, NULL )
     end if
     
-    '' call FIBERYIELD( expr )
+    '' call FIBERYIELD( expr ), and modify parameter to suit our needs
     proc_fiberyield = rtlProcLookup( @"fiberyield", FB_RTL_IDX_FIBERYIELD )
+    dim as FBSYMBOL ptr param = symbGetProcHeadParam( proc_fiberyield )
+    symbGetFullType( param ) = dtype
+    symbGetSubtype( param ) = subtype
+    symbGetParamMode( param ) = FB_PARAMMODE_BYREF
+    
     call_fiberyield = astNewCALL( proc_fiberyield )
     if( call_fiberyield = NULL ) then
         exit function

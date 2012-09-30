@@ -841,7 +841,7 @@ LIBFB_C := \
   utf_core \
   vfs_open
 
-LIBFB_S :=
+LIBFB_S := recall
 
 ifeq ($(TARGET_OS),cygwin)
   ALLCFLAGS += -DHOST_CYGWIN

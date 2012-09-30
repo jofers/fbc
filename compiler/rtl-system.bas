@@ -749,6 +749,27 @@ declare function 	hThreadCall_cb		( byval sym as FBSYMBOL ptr ) as integer
 	 			) _
 	 		} _
 	 	), _   
+        /' callbyproxy( as any ptr, as integer, as any ptr, as integer ) '/ _
+        ( _
+            @"callbyproxy", @"fb_hCallByProxy", _
+            FB_DATATYPE_VOID, FB_FUNCMODE_CDECL, _
+            NULL, FB_RTL_OPT_NOQB, _
+            4, _
+            { _
+                ( _
+                    typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, FALSE _
+                ), _
+                ( _
+                    FB_DATATYPE_INTEGER, FB_PARAMMODE_BYVAL, FALSE _
+                ), _
+                ( _
+                    typeAddrOf( FB_DATATYPE_VOID ), FB_PARAMMODE_BYVAL, FALSE _
+                ), _
+                ( _
+                    FB_DATATYPE_INTEGER, FB_PARAMMODE_BYVAL, FALSE _
+                ) _
+            } _
+        ), _
         /' EOL '/ _
 	 	( _
 	 		NULL _
@@ -961,6 +982,3 @@ function rtlAtExit _
     function = proc
 
 end function
-
-
-
